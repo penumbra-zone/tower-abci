@@ -11,7 +11,8 @@ license = "MIT"
 tendermint-proto = { git = "https://github.com/informalsystems/tendermint-rs.git" }
 tokio = { version = "1", features = ["full"]}
 tokio-util = "0.6"
+tokio-stream = "0.1"
 tower = { version = "0.4", features = ["full"]}
 pin-project = "1"
-futures-core = "0.3"
+futures = "0.3"
 tracing = "0.1"

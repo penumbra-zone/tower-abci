@@ -2,7 +2,7 @@ use super::{
     error::{Closed, ServiceError},
     message::Message,
 };
-use futures_core::ready;
+use futures::ready;
 use pin_project::pin_project;
 use std::sync::{Arc, Mutex, Weak};
 use std::{
