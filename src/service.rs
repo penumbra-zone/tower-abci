@@ -1,10 +1,10 @@
+use crate::{BoxError, Request, Response};
 use tower::Service;
-use crate::{Request, Response, BoxError};
 
-fn split_service<S>(svc: S) -> (Consensus<S>, Mempool<S>, Info<S>, Snapshot<S>)
+fn split<S>(svc: S) -> (Consensus<S>, Mempool<S>, Info<S>, Snapshot<S>)
 where
     S: Service<Request, Response = Response, BoxError>,
- {
+{
     todo!()
 }
 
