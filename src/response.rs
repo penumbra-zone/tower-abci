@@ -3,37 +3,37 @@ use std::convert::TryFrom;
 use tendermint_proto::abci as tpa;
 
 #[doc(inline)]
-pub use tpa::ResponseException as Exception;
-#[doc(inline)]
-pub use tpa::ResponseEcho as Echo;
-#[doc(inline)]
-pub use tpa::ResponseFlush as Flush;
-#[doc(inline)]
-pub use tpa::ResponseInfo as Info;
-#[doc(inline)]
-pub use tpa::ResponseSetOption as SetOption;
-#[doc(inline)]
-pub use tpa::ResponseInitChain as InitChain;
-#[doc(inline)]
-pub use tpa::ResponseQuery as Query;
+pub use tpa::ResponseApplySnapshotChunk as ApplySnapshotChunk;
 #[doc(inline)]
 pub use tpa::ResponseBeginBlock as BeginBlock;
 #[doc(inline)]
 pub use tpa::ResponseCheckTx as CheckTx;
 #[doc(inline)]
+pub use tpa::ResponseCommit as Commit;
+#[doc(inline)]
 pub use tpa::ResponseDeliverTx as DeliverTx;
+#[doc(inline)]
+pub use tpa::ResponseEcho as Echo;
 #[doc(inline)]
 pub use tpa::ResponseEndBlock as EndBlock;
 #[doc(inline)]
-pub use tpa::ResponseCommit as Commit;
+pub use tpa::ResponseException as Exception;
+#[doc(inline)]
+pub use tpa::ResponseFlush as Flush;
+#[doc(inline)]
+pub use tpa::ResponseInfo as Info;
+#[doc(inline)]
+pub use tpa::ResponseInitChain as InitChain;
 #[doc(inline)]
 pub use tpa::ResponseListSnapshots as ListSnapshots;
 #[doc(inline)]
-pub use tpa::ResponseOfferSnapshot as OfferSnapshot;
-#[doc(inline)]
 pub use tpa::ResponseLoadSnapshotChunk as LoadSnapshotChunk;
 #[doc(inline)]
-pub use tpa::ResponseApplySnapshotChunk as ApplySnapshotChunk;
+pub use tpa::ResponseOfferSnapshot as OfferSnapshot;
+#[doc(inline)]
+pub use tpa::ResponseQuery as Query;
+#[doc(inline)]
+pub use tpa::ResponseSetOption as SetOption;
 
 /// An ABCI response.
 pub enum Response {
@@ -54,7 +54,6 @@ pub enum Response {
     LoadSnapshotChunk(LoadSnapshotChunk),
     ApplySnapshotChunk(ApplySnapshotChunk),
 }
-
 
 /// An ABCI response sent over the consensus connection.
 #[derive(Clone, PartialEq, Debug)]
