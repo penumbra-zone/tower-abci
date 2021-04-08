@@ -6,6 +6,10 @@ pub use request::{ConsensusRequest, InfoRequest, MempoolRequest, Request, Snapsh
 pub mod response;
 pub use response::{ConsensusResponse, InfoResponse, MempoolResponse, Response, SnapshotResponse};
 
+/// A fork of tower::buffer @ `e1760d38` that has four queues feeding
+/// the same worker task, with different priorities.
+mod quad_buffer;
+
 mod server;
 pub use server::Server;
 

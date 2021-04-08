@@ -34,27 +34,27 @@ where
     I: Service<InfoRequest, Response = InfoResponse, Error = BoxError> + Clone,
     S: Service<SnapshotRequest, Response = SnapshotResponse, Error = BoxError> + Clone,
 {
-    pub fn with_consensus(self, consensus: C) -> Self {
+    pub fn with_consensus(mut self, consensus: C) -> Self {
         self.consensus = Some(consensus);
         self
     }
 
-    pub fn with_mempool(self, mempool: M) -> Self {
+    pub fn with_mempool(mut self, mempool: M) -> Self {
         self.mempool = Some(mempool);
         self
     }
 
-    pub fn with_info(self, info: I) -> Self {
+    pub fn with_info(mut self, info: I) -> Self {
         self.info = Some(info);
         self
     }
 
-    pub fn with_snapshot(self, snapshot: S) -> Self {
+    pub fn with_snapshot(mut self, snapshot: S) -> Self {
         self.snapshot = Some(snapshot);
         self
     }
 
-    pub fn finish(self) -> Option<Server<C, M, I, S>> {
+    pub fn finish(mut self) -> Option<Server<C, M, I, S>> {
         todo!()
     }
 }
@@ -69,9 +69,10 @@ where
     pub fn builder() -> ServerBuilder<C, M, I, S> {
         todo!()
     }
-
+/*
     pub fn run(self) -> impl Future<Output = Result<(), BoxError>> {
     // return a task that can be spawned
         todo!()
     }
+    */
 }

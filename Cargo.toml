@@ -3,10 +3,15 @@ name = "tower-abci"
 version = "0.1.0"
 authors = ["Henry de Valence <hdevalence@hdevalence.ca>"]
 edition = "2018"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 tendermint-proto = { git = "https://github.com/informalsystems/tendermint-rs.git" }
 tokio = { version = "1", features = ["full"]}
+tokio-util = "0.6"
 tower = { version = "0.4", features = ["full"]}
+pin-project = "1"
+futures-core = "0.3"
+tracing = "0.1"
