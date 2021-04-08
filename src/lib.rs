@@ -8,7 +8,7 @@ pub use response::{ConsensusResponse, InfoResponse, MempoolResponse, Response, S
 
 /// A fork of tower::buffer @ `e1760d38` that has four queues feeding
 /// the same worker task, with different priorities.
-mod quad_buffer;
+mod buffer4;
 
 mod server;
 pub use server::Server;
