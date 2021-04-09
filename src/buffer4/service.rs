@@ -65,16 +65,16 @@ where
     /// [`Poll::Ready`]: std::task::Poll::Ready
     /// [`call`]: crate::Service::call
     /// [`poll_ready`]: crate::Service::poll_ready
-    pub fn new(service: T, bound: usize) -> Self
+    pub fn new(service: T, bound: usize) -> (Self, Self, Self, Self)
     where
         T: Send + 'static,
         T::Future: Send,
         T::Error: Send + Sync,
         Request: Send + 'static,
     {
-        let (service, worker) = Self::pair(service, bound);
-        tokio::spawn(worker);
-        service
+        let (svc1, svc2, svc3, svc4, worker) = Self::pair(service, bound);
+        tokio::spawn(worker.run());
+        (svc1, svc2, svc3, svc4)
     }
 
     /// Creates a new [`Buffer`] wrapping `service`, but returns the background worker.
@@ -82,22 +82,69 @@ where
     /// This is useful if you do not want to spawn directly onto the tokio runtime
     /// but instead want to use your own executor. This will return the [`Buffer`] and
     /// the background `Worker` that you can then spawn.
-    pub fn pair(service: T, bound: usize) -> (Buffer<T, Request>, Worker<T, Request>)
+    pub fn pair(
+        service: T,
+        bound: usize,
+    ) -> (
+        Buffer<T, Request>,
+        Buffer<T, Request>,
+        Buffer<T, Request>,
+        Buffer<T, Request>,
+        Worker<T, Request>,
+    )
     where
         T: Send + 'static,
         T::Error: Send + Sync,
         Request: Send + 'static,
     {
-        let (tx, rx) = mpsc::unbounded_channel();
-        let semaphore = Arc::new(Semaphore::new(bound));
-        let (handle, worker) = Worker::new(service, rx, &semaphore);
-        let buffer = Buffer {
-            tx,
-            handle,
-            semaphore: PollSemaphore::new(semaphore),
+        let (tx1, rx1) = mpsc::unbounded_channel();
+        let (tx2, rx2) = mpsc::unbounded_channel();
+        let (tx3, rx3) = mpsc::unbounded_channel();
+        let (tx4, rx4) = mpsc::unbounded_channel();
+
+        let semaphore1 = Arc::new(Semaphore::new(bound));
+        let semaphore2 = Arc::new(Semaphore::new(bound));
+        let semaphore3 = Arc::new(Semaphore::new(bound));
+        let semaphore4 = Arc::new(Semaphore::new(bound));
+
+        let (handle, worker) = Worker::new(
+            service,
+            rx1,
+            &semaphore1,
+            rx2,
+            &semaphore2,
+            rx3,
+            &semaphore3,
+            rx4,
+            &semaphore4,
+        );
+
+        let buffer1 = Buffer {
+            tx: tx1,
+            handle: handle.clone(),
+            semaphore: PollSemaphore::new(semaphore1),
             permit: None,
         };
-        (buffer, worker)
+        let buffer2 = Buffer {
+            tx: tx2,
+            handle: handle.clone(),
+            semaphore: PollSemaphore::new(semaphore2),
+            permit: None,
+        };
+        let buffer3 = Buffer {
+            tx: tx3,
+            handle: handle.clone(),
+            semaphore: PollSemaphore::new(semaphore3),
+            permit: None,
+        };
+        let buffer4 = Buffer {
+            tx: tx4,
+            handle,
+            semaphore: PollSemaphore::new(semaphore4),
+            permit: None,
+        };
+
+        (buffer1, buffer2, buffer3, buffer4, worker)
     }
 
     fn get_worker_error(&self) -> crate::BoxError {

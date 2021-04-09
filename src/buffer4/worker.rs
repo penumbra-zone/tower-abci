@@ -2,42 +2,38 @@ use super::{
     error::{Closed, ServiceError},
     message::Message,
 };
-use futures::ready;
-use pin_project::pin_project;
+use futures::stream::StreamExt;
 use std::sync::{Arc, Mutex, Weak};
-use std::{
-    future::Future,
-    pin::Pin,
-    task::{Context, Poll},
+use tokio::{
+    select,
+    sync::{mpsc, Semaphore},
 };
-use tokio::sync::{mpsc, Semaphore};
-use tower::Service;
+use tokio_stream::wrappers::UnboundedReceiverStream;
+use tower::{Service, ServiceExt};
+use tracing::Instrument;
 
-/// Task that handles processing the buffer. This type should not be used
-/// directly, instead `Buffer` requires an `Executor` that can accept this task.
-///
-/// The struct is `pub` in the private module and the type is *not* re-exported
-/// as part of the public API. This is the "sealed" pattern to include "private"
-/// types in public traits that are not meant for consumers of the library to
-/// implement (only call).
-#[pin_project(PinnedDrop)]
-#[derive(Debug)]
 pub struct Worker<T, Request>
 where
     T: Service<Request>,
     T::Error: Into<crate::BoxError>,
 {
-    current_message: Option<Message<Request, T::Future>>,
-    rx: mpsc::UnboundedReceiver<Message<Request, T::Future>>,
     service: T,
-    finish: bool,
-    failed: Option<ServiceError>,
     handle: Handle,
-    close: Option<Weak<Semaphore>>,
+    failed: Option<ServiceError>,
+
+    rx1: Option<mpsc::UnboundedReceiver<Message<Request, T::Future>>>,
+    rx2: Option<mpsc::UnboundedReceiver<Message<Request, T::Future>>>,
+    rx3: Option<mpsc::UnboundedReceiver<Message<Request, T::Future>>>,
+    rx4: Option<mpsc::UnboundedReceiver<Message<Request, T::Future>>>,
+
+    close1: Option<Weak<Semaphore>>,
+    close2: Option<Weak<Semaphore>>,
+    close3: Option<Weak<Semaphore>>,
+    close4: Option<Weak<Semaphore>>,
 }
 
 /// Get the error out
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Handle {
     inner: Arc<Mutex<Option<ServiceError>>>,
 }
@@ -49,190 +45,173 @@ where
 {
     pub(crate) fn new(
         service: T,
-        rx: mpsc::UnboundedReceiver<Message<Request, T::Future>>,
-        semaphore: &Arc<Semaphore>,
+        rx1: mpsc::UnboundedReceiver<Message<Request, T::Future>>,
+        semaphore1: &Arc<Semaphore>,
+        rx2: mpsc::UnboundedReceiver<Message<Request, T::Future>>,
+        semaphore2: &Arc<Semaphore>,
+        rx3: mpsc::UnboundedReceiver<Message<Request, T::Future>>,
+        semaphore3: &Arc<Semaphore>,
+        rx4: mpsc::UnboundedReceiver<Message<Request, T::Future>>,
+        semaphore4: &Arc<Semaphore>,
     ) -> (Handle, Worker<T, Request>) {
         let handle = Handle {
             inner: Arc::new(Mutex::new(None)),
         };
 
-        let semaphore = Arc::downgrade(semaphore);
+        let close1 = Some(Arc::downgrade(semaphore1));
+        let close2 = Some(Arc::downgrade(semaphore2));
+        let close3 = Some(Arc::downgrade(semaphore3));
+        let close4 = Some(Arc::downgrade(semaphore4));
+
         let worker = Worker {
-            current_message: None,
-            finish: false,
-            failed: None,
-            rx,
             service,
             handle: handle.clone(),
-            close: Some(semaphore),
+            failed: None,
+            rx1: Some(rx1),
+            rx2: Some(rx2),
+            rx3: Some(rx3),
+            rx4: Some(rx4),
+            close1,
+            close2,
+            close3,
+            close4,
         };
 
         (handle, worker)
     }
 
-    /// Return the next queued Message that hasn't been canceled.
-    ///
-    /// If a `Message` is returned, the `bool` is true if this is the first time we received this
-    /// message, and false otherwise (i.e., we tried to forward it to the backing service before).
-    fn poll_next_msg(
-        &mut self,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<(Message<Request, T::Future>, bool)>> {
-        if self.finish {
-            // We've already received None and are shutting down
-            return Poll::Ready(None);
+    fn shutdown(&mut self) {
+        if let Some(close1) = self.close1.take().as_ref().and_then(Weak::upgrade) {
+            tracing::debug!("buffer 1 closing; waking pending tasks");
+            close1.close();
         }
-
-        tracing::trace!("worker polling for next message");
-        if let Some(msg) = self.current_message.take() {
-            // If the oneshot sender is closed, then the receiver is dropped,
-            // and nobody cares about the response. If this is the case, we
-            // should continue to the next request.
-            if !msg.tx.is_closed() {
-                tracing::trace!("resuming buffered request");
-                return Poll::Ready(Some((msg, false)));
-            }
-
-            tracing::trace!("dropping cancelled buffered request");
+        if let Some(close2) = self.close2.take().as_ref().and_then(Weak::upgrade) {
+            tracing::debug!("buffer 2 closing; waking pending tasks");
+            close2.close();
         }
-
-        // Get the next request
-        while let Some(msg) = ready!(Pin::new(&mut self.rx).poll_recv(cx)) {
-            if !msg.tx.is_closed() {
-                tracing::trace!("processing new request");
-                return Poll::Ready(Some((msg, true)));
-            }
-            // Otherwise, request is canceled, so pop the next one.
-            tracing::trace!("dropping cancelled request");
+        if let Some(close3) = self.close3.take().as_ref().and_then(Weak::upgrade) {
+            tracing::debug!("buffer 3 closing; waking pending tasks");
+            close3.close();
         }
-
-        Poll::Ready(None)
+        if let Some(close4) = self.close4.take().as_ref().and_then(Weak::upgrade) {
+            tracing::debug!("buffer 4 closing; waking pending tasks");
+            close4.close();
+        }
     }
 
     fn failed(&mut self, error: crate::BoxError) {
-        // The underlying service failed when we called `poll_ready` on it with the given `error`. We
-        // need to communicate this to all the `Buffer` handles. To do so, we wrap up the error in
-        // an `Arc`, send that `Arc<E>` to all pending requests, and store it so that subsequent
-        // requests will also fail with the same error.
-
-        // Note that we need to handle the case where some handle is concurrently trying to send us
-        // a request. We need to make sure that *either* the send of the request fails *or* it
-        // receives an error on the `oneshot` it constructed. Specifically, we want to avoid the
-        // case where we send errors to all outstanding requests, and *then* the caller sends its
-        // request. We do this by *first* exposing the error, *then* closing the channel used to
-        // send more requests (so the client will see the error when the send fails), and *then*
-        // sending the error to all outstanding requests.
+        tracing::debug!({ %error }, "service failed");
         let error = ServiceError::new(error);
-
         let mut inner = self.handle.inner.lock().unwrap();
 
         if inner.is_some() {
-            // Future::poll was called after we've already errored out!
-            return;
+            unreachable!("cannot fail twice");
         }
 
         *inner = Some(error.clone());
         drop(inner);
+        self.rx1.as_mut().map(|chan| chan.close());
+        self.rx2.as_mut().map(|chan| chan.close());
+        self.rx3.as_mut().map(|chan| chan.close());
+        self.rx4.as_mut().map(|chan| chan.close());
 
-        self.rx.close();
-
-        // By closing the mpsc::Receiver, we know that poll_next_msg will soon return Ready(None),
-        // which will trigger the `self.finish == true` phase. We just need to make sure that any
-        // requests that we receive before we've exhausted the receiver receive the error:
         self.failed = Some(error);
     }
 
-    /// Closes the buffer's semaphore if it is still open, waking any pending
-    /// tasks.
-    fn close_semaphore(&mut self) {
-        if let Some(close) = self.close.take().as_ref().and_then(Weak::upgrade) {
-            tracing::debug!("buffer closing; waking pending tasks");
-            close.close();
-        } else {
-            tracing::trace!("buffer already closed");
+    async fn process(&mut self, msg: Message<Request, T::Future>) {
+        match self.service.ready().await {
+            Ok(svc) => {
+                tracing::trace!("dispatching request to service");
+                let response = svc.call(msg.request);
+                tracing::trace!("returning response future");
+                let _ = msg.tx.send(Ok(response));
+            }
+            Err(e) => {
+                self.failed(e.into());
+                let error = self.failed.as_ref().expect("just set error").clone();
+                let _ = msg.tx.send(Err(error));
+            }
         }
     }
-}
 
-impl<T, Request> Future for Worker<T, Request>
-where
-    T: Service<Request>,
-    T::Error: Into<crate::BoxError>,
-{
-    type Output = ();
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if self.finish {
-            return Poll::Ready(());
-        }
-
+    pub(crate) async fn run(mut self) {
         loop {
-            match ready!(self.poll_next_msg(cx)) {
-                Some((msg, first)) => {
-                    let _guard = msg.span.enter();
-                    if let Some(ref failed) = self.failed {
-                        tracing::trace!("notifying caller about worker failure");
-                        let _ = msg.tx.send(Err(failed.clone()));
-                        continue;
-                    }
+            if let Some(ref failed) = self.failed {
+                tracing::trace!("flushing pending requests after worker failure");
+                // We've failed and closed all channels.
+                // Now we flush any pending channel entries.
+                flush_channel(failed, self.rx1.take()).await;
+                flush_channel(failed, self.rx2.take()).await;
+                flush_channel(failed, self.rx3.take()).await;
+                flush_channel(failed, self.rx4.take()).await;
 
-                    // Wait for the service to be ready
-                    tracing::trace!(
-                        resumed = !first,
-                        message = "worker received request; waiting for service readiness"
-                    );
-                    match self.service.poll_ready(cx) {
-                        Poll::Ready(Ok(())) => {
-                            tracing::debug!(service.ready = true, message = "processing request");
-                            let response = self.service.call(msg.request);
+                self.shutdown();
+                return;
+            }
 
-                            // Send the response future back to the sender.
-                            //
-                            // An error means the request had been canceled in-between
-                            // our calls, the response future will just be dropped.
-                            tracing::trace!("returning response future");
-                            let _ = msg.tx.send(Ok(response));
+            select! {
+                // Using a biased select means the channels will be polled
+                // in priority order, not in a random (fair) order.
+                biased;
+                msg = self.rx1.as_mut().unwrap().recv(), if self.rx1.is_some() => {
+                    match msg {
+                        Some(msg) => {
+                            let span = msg.span.clone();
+                            self.process(msg).instrument(span).await
                         }
-                        Poll::Pending => {
-                            tracing::trace!(service.ready = false, message = "delay");
-                            // Put out current message back in its slot.
-                            drop(_guard);
-                            self.current_message = Some(msg);
-                            return Poll::Pending;
-                        }
-                        Poll::Ready(Err(e)) => {
-                            let error = e.into();
-                            tracing::debug!({ %error }, "service failed");
-                            drop(_guard);
-                            self.failed(error);
-                            let _ = msg.tx.send(Err(self
-                                .failed
-                                .as_ref()
-                                .expect("Worker::failed did not set self.failed?")
-                                .clone()));
-                            // Wake any tasks waiting on channel capacity.
-                            self.close_semaphore();
-                        }
+                        None => self.rx1 = None,
                     }
                 }
-                None => {
-                    // No more more requests _ever_.
-                    self.finish = true;
-                    return Poll::Ready(());
+                msg = self.rx2.as_mut().unwrap().recv(), if self.rx2.is_some() => {
+                    match msg {
+                        Some(msg) => {
+                            let span = msg.span.clone();
+                            self.process(msg).instrument(span).await
+                        }
+                        None => self.rx2 = None,
+                    }
                 }
+                msg = self.rx3.as_mut().unwrap().recv(), if self.rx2.is_some() => {
+                    match msg {
+                        Some(msg) => {
+                            let span = msg.span.clone();
+                            self.process(msg).instrument(span).await
+                        }
+                        None => self.rx3 = None,
+                    }
+                }
+                msg = self.rx4.as_mut().unwrap().recv(), if self.rx2.is_some() => {
+                    match msg {
+                        Some(msg) => {
+                            let span = msg.span.clone();
+                            self.process(msg).instrument(span).await
+                        }
+                        None => self.rx4 = None,
+                    }
+                }
+            };
+
+            if self.rx1.is_none() && self.rx2.is_none() && self.rx3.is_none() && self.rx4.is_none()
+            {
+                tracing::trace!("all senders closed, shutting down");
+                self.shutdown();
+                return;
             }
         }
     }
 }
 
-#[pin_project::pinned_drop]
-impl<T, Request> PinnedDrop for Worker<T, Request>
-where
-    T: Service<Request>,
-    T::Error: Into<crate::BoxError>,
-{
-    fn drop(mut self: Pin<&mut Self>) {
-        self.as_mut().close_semaphore();
+async fn flush_channel<T, F>(
+    failed: &ServiceError,
+    rx: Option<mpsc::UnboundedReceiver<Message<T, F>>>,
+) {
+    if let Some(chan) = rx {
+        let mut s = UnboundedReceiverStream::new(chan);
+        while let Some(msg) = s.next().await {
+            let _guard = msg.span.enter();
+            tracing::trace!("notifying caller about worker failure");
+            let _ = msg.tx.send(Err(failed.clone()));
+        }
     }
 }
 
@@ -244,13 +223,5 @@ impl Handle {
             .as_ref()
             .map(|svc_err| svc_err.clone().into())
             .unwrap_or_else(|| Closed::new().into())
-    }
-}
-
-impl Clone for Handle {
-    fn clone(&self) -> Handle {
-        Handle {
-            inner: self.inner.clone(),
-        }
     }
 }
