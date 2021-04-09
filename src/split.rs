@@ -1,3 +1,28 @@
+//! Splits a single [`Service`] implementing all of ABCI into four cloneable
+//! component services, each implementing one category of ABCI requests.
+//!
+//! The component services share access to the main service via message-passing
+//! over buffered channels. This means that the component services can be cloned
+//! to provide shared access to the ABCI application, which processes
+//! requests sequentially with the following prioritization:
+//!
+//! 1. [`ConsensusRequest`]s sent to the [`Consensus`] service;
+//! 2. [`MempoolRequest`]s sent to the [`Mempool`] service;
+//! 3. [`SnapshotRequest`]s sent to the [`Snapshot`] service;
+//! 4. [`InfoRequest`]s sent to the [`Info`] service.
+//!
+//! The ABCI service can execute these requests synchronously, in
+//! [`Service::call`](tower::Service::call), or asynchronously, by immediately
+//! returning a future that will be executed on the caller's task. Or, it can
+//! split the difference and perform some amount of synchronous work and defer
+//! the rest to be performed asynchronously.
+//!
+//! Because each category of requests is handled by a different service, request
+//! behavior can be customized on a per-category basis using Tower
+//! [`Layer`](tower::Layer)s. For instance, load-shedding can be added to
+//! [`InfoRequest`]s but not [`ConsensusRequest`]s, or different categories can
+//! have different timeout policies, or different types of instrumentation.
+
 use std::task::{Context, Poll};
 
 use crate::{
@@ -7,18 +32,15 @@ use crate::{
 use tower::Service;
 
 /// Splits a single `service` implementing all of ABCI into four cloneable
-/// component services, each implementing one category of ABCI requests.
+/// component services, each implementing one category of ABCI requests. See the
+/// module documentation for details.
 ///
-/// The component services share access to the main service via message-passing
-/// over buffered channels. The main ABCI service processes requests one at a time in
-/// the following priority order:
-///
-/// 1. [`ConsensusRequest`]s sent to the [`Consensus`] service;
-/// 2. [`MempoolRequest`]s sent to the [`Mempool`] service;
-/// 3. [`SnapshotRequest`]s sent to the [`Snapshot`] service;
-/// 4. [`InfoRequest`]s sent to the [`Info`] service.
-///
-pub fn services<S>(service: S, bound: usize) -> (Consensus<S>, Mempool<S>, Snapshot<S>, Info<S>)
+/// The `bound` parameter bounds the size of each component's request queue. For
+/// the same reason as in Tower's [`Buffer`](tower::buffer::Buffer) middleware,
+/// it's advisable to set the `bound` to be at least the number of concurrent
+/// requests to the component services. However, large buffers hide backpressure
+/// from propagating to the caller.
+pub fn service<S>(service: S, bound: usize) -> (Consensus<S>, Mempool<S>, Snapshot<S>, Info<S>)
 where
     S: Service<Request, Response = Response, Error = BoxError> + Send + 'static,
     S::Future: Send + 'static,
@@ -34,12 +56,24 @@ where
     )
 }
 
-#[derive(Clone)]
+/// Forwards consensus requests to a shared backing service.
 pub struct Consensus<S>
 where
     S: Service<Request, Response = Response, Error = BoxError>,
 {
     inner: Buffer<S, Request>,
+}
+
+// Implementing Clone manually avoids an (incorrect) derived S: Clone bound
+impl<S> Clone for Consensus<S>
+where
+    S: Service<Request, Response = Response, Error = BoxError>,
+{
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
 }
 
 impl<S> Service<ConsensusRequest> for Consensus<S>
@@ -61,12 +95,24 @@ where
     }
 }
 
-#[derive(Clone)]
+/// Forwards mempool requests to a shared backing service.
 pub struct Mempool<S>
 where
     S: Service<Request, Response = Response, Error = BoxError>,
 {
     inner: Buffer<S, Request>,
+}
+
+// Implementing Clone manually avoids an (incorrect) derived S: Clone bound
+impl<S> Clone for Mempool<S>
+where
+    S: Service<Request, Response = Response, Error = BoxError>,
+{
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
 }
 
 impl<S> Service<MempoolRequest> for Mempool<S>
@@ -88,12 +134,24 @@ where
     }
 }
 
-#[derive(Clone)]
+/// Forwards info requests to a shared backing service.
 pub struct Info<S>
 where
     S: Service<Request, Response = Response, Error = BoxError>,
 {
     inner: Buffer<S, Request>,
+}
+
+// Implementing Clone manually avoids an (incorrect) derived S: Clone bound
+impl<S> Clone for Info<S>
+where
+    S: Service<Request, Response = Response, Error = BoxError>,
+{
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
 }
 
 impl<S> Service<InfoRequest> for Info<S>
@@ -115,12 +173,24 @@ where
     }
 }
 
-#[derive(Clone)]
+/// Forwards snapshot requests to a shared backing service.
 pub struct Snapshot<S>
 where
     S: Service<Request, Response = Response, Error = BoxError>,
 {
     inner: Buffer<S, Request>,
+}
+
+// Implementing Clone manually avoids an (incorrect) derived S: Clone bound
+impl<S> Clone for Snapshot<S>
+where
+    S: Service<Request, Response = Response, Error = BoxError>,
+{
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
 }
 
 impl<S> Service<SnapshotRequest> for Snapshot<S>
@@ -151,6 +221,7 @@ where
 
 // https://github.com/rust-lang/rust/issues/63063 fixes this
 
+/// Futures types.
 pub mod futures {
     use pin_project::pin_project;
     use std::{convert::TryInto, future::Future, pin::Pin};
