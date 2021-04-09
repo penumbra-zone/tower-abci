@@ -32,7 +32,7 @@ impl Service<Request> for KVStore {
 
 #[tokio::main]
 async fn main() {
-    let (consensus, mempool, info, snapshot) = tower_abci::service::split(KVStore::default());
+    let (consensus, mempool, info, snapshot) = tower_abci::split::split(KVStore::default());
 
     tokio::spawn(
         Server::builder()
