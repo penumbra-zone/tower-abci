@@ -23,10 +23,15 @@ ABCI interface.  It has two parts:
 to one of four user-provided [`Service`][svc]s, each responsible for processing
 one category of requests (consensus, mempool, info, or snapshot).
 
-2. Middleware that splits a single [`Service`][svc] implementing all of ABCI into
-four cloneable component services, each implementing one category of
+2. Middleware that splits a single [`Service`][svc] implementing all of ABCI
+into four cloneable component services, each implementing one category of
 requests. The component services use message-passing to share access to the
-main service, which processes requests with category-based prioritization.
+main service, which processes requests with the following category-based
+prioritization:
+    1. `ConsensusRequest`s sent to the `Consensus` service;
+    2. `MempoolRequest`s sent to the `Mempool` service;
+    3. `SnapshotRequest`s sent to the `Snapshot` service;
+    4. `InfoRequest`s sent to the `Info` service.
 
 Because the ABCI server takes one service per category, users can apply Tower
 layers to the services they pass to the ABCI `Server` to add
