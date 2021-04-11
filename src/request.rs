@@ -1,37 +1,39 @@
 use std::convert::TryFrom;
 
-use tendermint_proto::abci as tpa;
+use tendermint_proto::abci as pb;
+
+use crate::MethodKind;
 
 #[doc(inline)]
-pub use tpa::RequestApplySnapshotChunk as ApplySnapshotChunk;
+pub use pb::RequestApplySnapshotChunk as ApplySnapshotChunk;
 #[doc(inline)]
-pub use tpa::RequestBeginBlock as BeginBlock;
+pub use pb::RequestBeginBlock as BeginBlock;
 #[doc(inline)]
-pub use tpa::RequestCheckTx as CheckTx;
+pub use pb::RequestCheckTx as CheckTx;
 #[doc(inline)]
-pub use tpa::RequestCommit as Commit;
+pub use pb::RequestCommit as Commit;
 #[doc(inline)]
-pub use tpa::RequestDeliverTx as DeliverTx;
+pub use pb::RequestDeliverTx as DeliverTx;
 #[doc(inline)]
-pub use tpa::RequestEcho as Echo;
+pub use pb::RequestEcho as Echo;
 #[doc(inline)]
-pub use tpa::RequestEndBlock as EndBlock;
+pub use pb::RequestEndBlock as EndBlock;
 #[doc(inline)]
-pub use tpa::RequestFlush as Flush;
+pub use pb::RequestFlush as Flush;
 #[doc(inline)]
-pub use tpa::RequestInfo as Info;
+pub use pb::RequestInfo as Info;
 #[doc(inline)]
-pub use tpa::RequestInitChain as InitChain;
+pub use pb::RequestInitChain as InitChain;
 #[doc(inline)]
-pub use tpa::RequestListSnapshots as ListSnapshots;
+pub use pb::RequestListSnapshots as ListSnapshots;
 #[doc(inline)]
-pub use tpa::RequestLoadSnapshotChunk as LoadSnapshotChunk;
+pub use pb::RequestLoadSnapshotChunk as LoadSnapshotChunk;
 #[doc(inline)]
-pub use tpa::RequestOfferSnapshot as OfferSnapshot;
+pub use pb::RequestOfferSnapshot as OfferSnapshot;
 #[doc(inline)]
-pub use tpa::RequestQuery as Query;
+pub use pb::RequestQuery as Query;
 #[doc(inline)]
-pub use tpa::RequestSetOption as SetOption;
+pub use pb::RequestSetOption as SetOption;
 
 /// An ABCI request.
 #[derive(Clone, PartialEq, Debug)]
@@ -51,6 +53,80 @@ pub enum Request {
     OfferSnapshot(OfferSnapshot),
     LoadSnapshotChunk(LoadSnapshotChunk),
     ApplySnapshotChunk(ApplySnapshotChunk),
+}
+
+impl Request {
+    /// Get the method kind for this request.
+    pub fn kind(&self) -> MethodKind {
+        use Request::*;
+        match self {
+            Flush(_) => MethodKind::Flush,
+            InitChain(_) => MethodKind::Consensus,
+            BeginBlock(_) => MethodKind::Consensus,
+            DeliverTx(_) => MethodKind::Consensus,
+            EndBlock(_) => MethodKind::Consensus,
+            Commit(_) => MethodKind::Consensus,
+            CheckTx(_) => MethodKind::Mempool,
+            ListSnapshots(_) => MethodKind::Snapshot,
+            OfferSnapshot(_) => MethodKind::Snapshot,
+            LoadSnapshotChunk(_) => MethodKind::Snapshot,
+            ApplySnapshotChunk(_) => MethodKind::Snapshot,
+            Info(_) => MethodKind::Info,
+            Query(_) => MethodKind::Info,
+            SetOption(_) => MethodKind::Info,
+            Echo(_) => MethodKind::Info,
+        }
+    }
+}
+
+impl TryFrom<pb::Request> for Request {
+    type Error = &'static str;
+
+    fn try_from(proto: pb::Request) -> Result<Self, Self::Error> {
+        use pb::request::Value;
+        match proto.value {
+            Some(Value::Echo(x)) => Ok(Request::Echo(x)),
+            Some(Value::Flush(x)) => Ok(Request::Flush(x)),
+            Some(Value::Info(x)) => Ok(Request::Info(x)),
+            Some(Value::SetOption(x)) => Ok(Request::SetOption(x)),
+            Some(Value::InitChain(x)) => Ok(Request::InitChain(x)),
+            Some(Value::Query(x)) => Ok(Request::Query(x)),
+            Some(Value::BeginBlock(x)) => Ok(Request::BeginBlock(x)),
+            Some(Value::CheckTx(x)) => Ok(Request::CheckTx(x)),
+            Some(Value::DeliverTx(x)) => Ok(Request::DeliverTx(x)),
+            Some(Value::EndBlock(x)) => Ok(Request::EndBlock(x)),
+            Some(Value::Commit(x)) => Ok(Request::Commit(x)),
+            Some(Value::ListSnapshots(x)) => Ok(Request::ListSnapshots(x)),
+            Some(Value::OfferSnapshot(x)) => Ok(Request::OfferSnapshot(x)),
+            Some(Value::LoadSnapshotChunk(x)) => Ok(Request::LoadSnapshotChunk(x)),
+            Some(Value::ApplySnapshotChunk(x)) => Ok(Request::ApplySnapshotChunk(x)),
+            None => Err("no request in proto"),
+        }
+    }
+}
+
+impl Into<pb::Request> for Request {
+    fn into(self) -> pb::Request {
+        use pb::request::Value;
+        let value = match self {
+            Request::Echo(x) => Some(Value::Echo(x)),
+            Request::Flush(x) => Some(Value::Flush(x)),
+            Request::Info(x) => Some(Value::Info(x)),
+            Request::SetOption(x) => Some(Value::SetOption(x)),
+            Request::InitChain(x) => Some(Value::InitChain(x)),
+            Request::Query(x) => Some(Value::Query(x)),
+            Request::BeginBlock(x) => Some(Value::BeginBlock(x)),
+            Request::CheckTx(x) => Some(Value::CheckTx(x)),
+            Request::DeliverTx(x) => Some(Value::DeliverTx(x)),
+            Request::EndBlock(x) => Some(Value::EndBlock(x)),
+            Request::Commit(x) => Some(Value::Commit(x)),
+            Request::ListSnapshots(x) => Some(Value::ListSnapshots(x)),
+            Request::OfferSnapshot(x) => Some(Value::OfferSnapshot(x)),
+            Request::LoadSnapshotChunk(x) => Some(Value::LoadSnapshotChunk(x)),
+            Request::ApplySnapshotChunk(x) => Some(Value::ApplySnapshotChunk(x)),
+        };
+        pb::Request { value }
+    }
 }
 
 /// An ABCI request sent over the consensus connection.
@@ -118,6 +194,8 @@ impl TryFrom<Request> for MempoolRequest {
 pub enum InfoRequest {
     Info(Info),
     Query(Query),
+    SetOption(SetOption),
+    Echo(Echo),
 }
 
 impl From<InfoRequest> for Request {
@@ -125,6 +203,8 @@ impl From<InfoRequest> for Request {
         match req {
             InfoRequest::Info(x) => Self::Info(x),
             InfoRequest::Query(x) => Self::Query(x),
+            InfoRequest::SetOption(x) => Self::SetOption(x),
+            InfoRequest::Echo(x) => Self::Echo(x),
         }
     }
 }
@@ -135,6 +215,8 @@ impl TryFrom<Request> for InfoRequest {
         match req {
             Request::Info(x) => Ok(Self::Info(x)),
             Request::Query(x) => Ok(Self::Query(x)),
+            Request::SetOption(x) => Ok(Self::SetOption(x)),
+            Request::Echo(x) => Ok(Self::Echo(x)),
             _ => Err("wrong request type"),
         }
     }

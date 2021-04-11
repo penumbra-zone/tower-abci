@@ -1,41 +1,42 @@
 use std::convert::TryFrom;
 
-use tendermint_proto::abci as tpa;
+use tendermint_proto::abci as pb;
 
 #[doc(inline)]
-pub use tpa::ResponseApplySnapshotChunk as ApplySnapshotChunk;
+pub use pb::ResponseApplySnapshotChunk as ApplySnapshotChunk;
 #[doc(inline)]
-pub use tpa::ResponseBeginBlock as BeginBlock;
+pub use pb::ResponseBeginBlock as BeginBlock;
 #[doc(inline)]
-pub use tpa::ResponseCheckTx as CheckTx;
+pub use pb::ResponseCheckTx as CheckTx;
 #[doc(inline)]
-pub use tpa::ResponseCommit as Commit;
+pub use pb::ResponseCommit as Commit;
 #[doc(inline)]
-pub use tpa::ResponseDeliverTx as DeliverTx;
+pub use pb::ResponseDeliverTx as DeliverTx;
 #[doc(inline)]
-pub use tpa::ResponseEcho as Echo;
+pub use pb::ResponseEcho as Echo;
 #[doc(inline)]
-pub use tpa::ResponseEndBlock as EndBlock;
+pub use pb::ResponseEndBlock as EndBlock;
 #[doc(inline)]
-pub use tpa::ResponseException as Exception;
+pub use pb::ResponseException as Exception;
 #[doc(inline)]
-pub use tpa::ResponseFlush as Flush;
+pub use pb::ResponseFlush as Flush;
 #[doc(inline)]
-pub use tpa::ResponseInfo as Info;
+pub use pb::ResponseInfo as Info;
 #[doc(inline)]
-pub use tpa::ResponseInitChain as InitChain;
+pub use pb::ResponseInitChain as InitChain;
 #[doc(inline)]
-pub use tpa::ResponseListSnapshots as ListSnapshots;
+pub use pb::ResponseListSnapshots as ListSnapshots;
 #[doc(inline)]
-pub use tpa::ResponseLoadSnapshotChunk as LoadSnapshotChunk;
+pub use pb::ResponseLoadSnapshotChunk as LoadSnapshotChunk;
 #[doc(inline)]
-pub use tpa::ResponseOfferSnapshot as OfferSnapshot;
+pub use pb::ResponseOfferSnapshot as OfferSnapshot;
 #[doc(inline)]
-pub use tpa::ResponseQuery as Query;
+pub use pb::ResponseQuery as Query;
 #[doc(inline)]
-pub use tpa::ResponseSetOption as SetOption;
+pub use pb::ResponseSetOption as SetOption;
 
 /// An ABCI response.
+#[derive(Debug, Clone)]
 pub enum Response {
     Exception(Exception),
     Echo(Echo),
@@ -53,6 +54,31 @@ pub enum Response {
     OfferSnapshot(OfferSnapshot),
     LoadSnapshotChunk(LoadSnapshotChunk),
     ApplySnapshotChunk(ApplySnapshotChunk),
+}
+
+impl Into<pb::Response> for Response {
+    fn into(self) -> pb::Response {
+        use pb::response::Value;
+        let value = Some(match self {
+            Response::Exception(x) => Value::Exception(x),
+            Response::Echo(x) => Value::Echo(x),
+            Response::Flush(x) => Value::Flush(x),
+            Response::Info(x) => Value::Info(x),
+            Response::SetOption(x) => Value::SetOption(x),
+            Response::InitChain(x) => Value::InitChain(x),
+            Response::Query(x) => Value::Query(x),
+            Response::BeginBlock(x) => Value::BeginBlock(x),
+            Response::CheckTx(x) => Value::CheckTx(x),
+            Response::DeliverTx(x) => Value::DeliverTx(x),
+            Response::EndBlock(x) => Value::EndBlock(x),
+            Response::Commit(x) => Value::Commit(x),
+            Response::ListSnapshots(x) => Value::ListSnapshots(x),
+            Response::OfferSnapshot(x) => Value::OfferSnapshot(x),
+            Response::LoadSnapshotChunk(x) => Value::LoadSnapshotChunk(x),
+            Response::ApplySnapshotChunk(x) => Value::ApplySnapshotChunk(x),
+        });
+        pb::Response { value }
+    }
 }
 
 /// An ABCI response sent over the consensus connection.

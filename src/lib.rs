@@ -20,5 +20,16 @@ pub use server::Server;
 
 pub mod split;
 
+mod codec;
+
 /// A convenient error type alias.
 pub type BoxError = Box<dyn std::error::Error + Send + Sync + 'static>;
+
+/// A category of ABCI method.
+pub enum MethodKind {
+    Consensus,
+    Mempool,
+    Snapshot,
+    Info,
+    Flush,
+}
