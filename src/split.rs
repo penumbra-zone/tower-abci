@@ -25,11 +25,12 @@
 
 use std::task::{Context, Poll};
 
+use tower::Service;
+
 use crate::{
     buffer4::Buffer, BoxError, ConsensusRequest, ConsensusResponse, InfoRequest, InfoResponse,
     MempoolRequest, MempoolResponse, Request, Response, SnapshotRequest, SnapshotResponse,
 };
-use tower::Service;
 
 /// Splits a single `service` implementing all of ABCI into four cloneable
 /// component services, each implementing one category of ABCI requests. See the
@@ -45,7 +46,7 @@ where
     S: Service<Request, Response = Response, Error = BoxError> + Send + 'static,
     S::Future: Send + 'static,
 {
-    let bound = std::cmp::max(4, bound);
+    let bound = std::cmp::max(1, bound);
     let (buffer1, buffer2, buffer3, buffer4) = Buffer::new(service, bound);
 
     (

@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use tokio_util::codec::{Decoder, Encoder};
 
-use bytes::BytesMut;
+use bytes::{Buf, BufMut, BytesMut};
 
 pub struct Decode<M> {
     state: DecodeState,
@@ -31,17 +31,27 @@ impl<M: prost::Message + Default> Decoder for Decode<M> {
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         match self.state {
             DecodeState::Head => {
-                // Check if we have enough data to decode any LEB128-encoded u64
-                // This assumes message bodies are longer than 9 bytes
-                // XXX: probably want to cut this to 5 (u32 size) since we
-                // almost certainly don't want to read bigger than 4GB messages?
-                if src.len() < 10 {
-                    tracing::trace!(?self.state, src.len = src.len(), "waiting for header data");
-                    return Ok(None);
-                }
-                // XXX: decoding length checks should go here
-                let len = prost::encoding::decode_varint(src)? as usize;
+                tracing::trace!(?src, "decoding head");
+
+                // we don't use decode_varint directly, because it advances the
+                // buffer regardless of success, but Decoder assumes that when
+                // the buffer advances we've consumed the data. this is sort of
+                // a sad hack, but it works. fix it when fixing the codec to use
+                // unsigned length fields (tendermint master) instead of signed
+                // ones (tendermint v0.34.8).
+                let mut tmp = src.clone().freeze();
+                let len = match decode_varint(&mut tmp) {
+                    Ok(_) => {
+                        // advance the real buffer
+                        decode_varint(src).unwrap() as usize
+                    }
+                    Err(_) => {
+                        tracing::trace!(?self.state, src.len = src.len(), "waiting for header data");
+                        return Ok(None);
+                    }
+                };
                 self.state = DecodeState::Body { len };
+                tracing::trace!(?self.state, "ready for body");
 
                 // Recurse to attempt body decoding.
                 self.decode(src)
@@ -55,6 +65,10 @@ impl<M: prost::Message + Default> Decoder for Decode<M> {
                 let body = src.split_to(len);
                 tracing::trace!(?body, "decoding body");
                 let message = M::decode(body)?;
+
+                // Now reset the decoder state for the next message.
+                self.state = DecodeState::Head;
+
                 Ok(Some(message))
             }
         }
@@ -77,12 +91,28 @@ impl<M: prost::Message + Sized + std::fmt::Debug> Encoder<M> for Encode<M> {
     type Error = crate::BoxError;
 
     fn encode(&mut self, item: M, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        let len = item.encoded_len() + 10;
-        if dst.capacity() < len {
-            dst.reserve(len);
-        }
+        // rewrite this when switching to unsigned length fields
 
-        item.encode_length_delimited(dst)?;
+        let mut buf = BytesMut::new();
+        item.encode(&mut buf)?;
+        let buf = buf.freeze();
+        encode_varint(buf.len() as u64, dst);
+        dst.put(buf);
+
         Ok(())
     }
+}
+
+// copied from tendermint-rs/abci for compatibility with v0.34.8
+// remove these when switching to unsigned length delimiters.
+
+// encode_varint and decode_varint will be removed once
+// https://github.com/tendermint/tendermint/issues/5783 lands in Tendermint.
+pub fn encode_varint<B: BufMut>(val: u64, mut buf: &mut B) {
+    prost::encoding::encode_varint(val << 1, &mut buf);
+}
+
+pub fn decode_varint<B: Buf>(mut buf: &mut B) -> Result<u64, crate::BoxError> {
+    let len = prost::encoding::decode_varint(&mut buf)?;
+    Ok(len >> 1)
 }

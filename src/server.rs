@@ -153,7 +153,7 @@ where
                 Ok((socket, addr)) => {
                     // set parent: None for the connection span, as it should
                     // exist independently of the listener's spans.
-                    let span = tracing::span!(parent: None, Level::INFO, "conn", ?addr);
+                    let span = tracing::span!(parent: None, Level::ERROR, "abci", ?addr);
                     let conn = Connection {
                         consensus: self.consensus.clone(),
                         mempool: self.mempool.clone(),
@@ -189,8 +189,7 @@ where
     S::Future: Send + 'static,
 {
     // XXX handle errors gracefully
-    // figure out how / if to return errors to tendermin
-    // flush pending responses?
+    // figure out how / if to return errors to tendermint
     async fn run(mut self, mut socket: TcpStream) -> Result<(), BoxError> {
         tracing::info!("listening for requests");
 
