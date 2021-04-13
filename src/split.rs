@@ -26,6 +26,8 @@
 use std::task::{Context, Poll};
 
 use tower::Service;
+use tracing::Level;
+use tracing_tower::{InstrumentedService, InstrumentableService};
 
 use crate::{
     buffer4::Buffer, BoxError, ConsensusRequest, ConsensusResponse, InfoRequest, InfoResponse,
@@ -49,11 +51,16 @@ where
     let bound = std::cmp::max(1, bound);
     let (buffer1, buffer2, buffer3, buffer4) = Buffer::new(service, bound);
 
+    let consensus_span = tracing::span!(Level::ERROR, "consensus");
+    let mempool_span = tracing::span!(Level::ERROR, "mempool");
+    let snapshot_span = tracing::span!(Level::ERROR, "snapshot");
+    let info_span = tracing::span!(Level::ERROR, "info");
+
     (
-        Consensus { inner: buffer1 },
-        Mempool { inner: buffer2 },
-        Snapshot { inner: buffer3 },
-        Info { inner: buffer4 },
+        Consensus { inner: buffer1.instrument(consensus_span) },
+        Mempool { inner: buffer2.instrument(mempool_span) },
+        Snapshot { inner: buffer3.instrument(snapshot_span) },
+        Info { inner: buffer4.instrument(info_span) },
     )
 }
 
@@ -62,7 +69,7 @@ pub struct Consensus<S>
 where
     S: Service<Request, Response = Response, Error = BoxError>,
 {
-    inner: Buffer<S, Request>,
+    inner: InstrumentedService<Buffer<S, Request>, Request>,
 }
 
 // Implementing Clone manually avoids an (incorrect) derived S: Clone bound
@@ -101,7 +108,7 @@ pub struct Mempool<S>
 where
     S: Service<Request, Response = Response, Error = BoxError>,
 {
-    inner: Buffer<S, Request>,
+    inner: InstrumentedService<Buffer<S, Request>, Request>,
 }
 
 // Implementing Clone manually avoids an (incorrect) derived S: Clone bound
@@ -140,7 +147,7 @@ pub struct Info<S>
 where
     S: Service<Request, Response = Response, Error = BoxError>,
 {
-    inner: Buffer<S, Request>,
+    inner: InstrumentedService<Buffer<S, Request>, Request>,
 }
 
 // Implementing Clone manually avoids an (incorrect) derived S: Clone bound
@@ -179,7 +186,7 @@ pub struct Snapshot<S>
 where
     S: Service<Request, Response = Response, Error = BoxError>,
 {
-    inner: Buffer<S, Request>,
+    inner: InstrumentedService<Buffer<S, Request>, Request>,
 }
 
 // Implementing Clone manually avoids an (incorrect) derived S: Clone bound
@@ -235,7 +242,7 @@ pub mod futures {
         S: Service<Request, Response = Response, Error = BoxError>,
     {
         #[pin]
-        pub(super) inner: <Buffer<S, Request> as Service<Request>>::Future,
+        pub(super) inner: <InstrumentedService<Buffer<S, Request>, Request> as Service<Request>>::Future,
     }
 
     impl<S> Future for ConsensusFuture<S>
@@ -261,7 +268,7 @@ pub mod futures {
         S: Service<Request, Response = Response, Error = BoxError>,
     {
         #[pin]
-        pub(super) inner: <Buffer<S, Request> as Service<Request>>::Future,
+        pub(super) inner: <InstrumentedService<Buffer<S, Request>, Request> as Service<Request>>::Future,
     }
 
     impl<S> Future for MempoolFuture<S>
@@ -287,7 +294,7 @@ pub mod futures {
         S: Service<Request, Response = Response, Error = BoxError>,
     {
         #[pin]
-        pub(super) inner: <Buffer<S, Request> as Service<Request>>::Future,
+        pub(super) inner: <InstrumentedService<Buffer<S, Request>, Request> as Service<Request>>::Future,
     }
 
     impl<S> Future for InfoFuture<S>
@@ -313,7 +320,7 @@ pub mod futures {
         S: Service<Request, Response = Response, Error = BoxError>,
     {
         #[pin]
-        pub(super) inner: <Buffer<S, Request> as Service<Request>>::Future,
+        pub(super) inner: <InstrumentedService<Buffer<S, Request>, Request> as Service<Request>>::Future,
     }
 
     impl<S> Future for SnapshotFuture<S>
