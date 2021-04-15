@@ -12,9 +12,11 @@ use tower::{Service, ServiceExt};
 use tracing::Instrument;
 use tracing::Level;
 
+use tendermint::abci::MethodKind;
+
 use crate::{
     BoxError, ConsensusRequest, ConsensusResponse, InfoRequest, InfoResponse, MempoolRequest,
-    MempoolResponse, MethodKind, Request, Response, SnapshotRequest, SnapshotResponse,
+    MempoolResponse, Request, Response, SnapshotRequest, SnapshotResponse,
 };
 
 /// An ABCI server which listens for connections and forwards requests to four
@@ -248,7 +250,7 @@ where
                                 response_sink.send(response?.into()).await?;
                             }
                             // Now we need to tell Tendermint we've flushed responses
-                            response_sink.send(Response::Flush(Default::default()).into()).await?;
+                            response_sink.send(Response::Flush.into()).await?;
                         }
                     }
                 }

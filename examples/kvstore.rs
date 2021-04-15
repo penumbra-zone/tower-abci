@@ -7,12 +7,17 @@ use std::{
     task::{Context, Poll},
 };
 
+use bytes::Bytes;
 use futures::future::FutureExt;
 use structopt::StructOpt;
-use tendermint_proto::abci as pb;
 use tower::{Service, ServiceBuilder};
 
-use tower_abci::{split, BoxError, Request, Response, Server};
+use tendermint::abci::{
+    event::{Event, EventAttributeIndexExt},
+    response, Request, Response,
+};
+
+use tower_abci::{split, BoxError, Server};
 
 /// In-memory, hashmap-backed key-value store ABCI application.
 #[derive(Clone, Debug)]
@@ -38,19 +43,16 @@ impl Service<Request> for KVStore {
             // handled messages
             Request::Info(_) => Response::Info(self.info()),
             Request::Query(query) => Response::Query(self.query(query.data)),
-            Request::DeliverTx(pb::RequestDeliverTx { tx }) => {
-                Response::DeliverTx(self.deliver_tx(tx))
-            }
-            Request::Commit(_) => Response::Commit(self.commit()),
+            Request::DeliverTx(deliver_tx) => Response::DeliverTx(self.deliver_tx(deliver_tx.tx)),
+            Request::Commit => Response::Commit(self.commit()),
             // unhandled messages
+            Request::Flush => Response::Flush,
             Request::Echo(_) => Response::Echo(Default::default()),
-            Request::Flush(_) => Response::Flush(Default::default()),
-            Request::SetOption(_) => Response::SetOption(Default::default()),
             Request::InitChain(_) => Response::InitChain(Default::default()),
             Request::BeginBlock(_) => Response::BeginBlock(Default::default()),
             Request::CheckTx(_) => Response::CheckTx(Default::default()),
             Request::EndBlock(_) => Response::EndBlock(Default::default()),
-            Request::ListSnapshots(_) => Response::ListSnapshots(Default::default()),
+            Request::ListSnapshots => Response::ListSnapshots(Default::default()),
             Request::OfferSnapshot(_) => Response::OfferSnapshot(Default::default()),
             Request::LoadSnapshotChunk(_) => Response::LoadSnapshotChunk(Default::default()),
             Request::ApplySnapshotChunk(_) => Response::ApplySnapshotChunk(Default::default()),
@@ -71,40 +73,33 @@ impl Default for KVStore {
 }
 
 impl KVStore {
-    fn info(&self) -> pb::ResponseInfo {
-        pb::ResponseInfo {
+    fn info(&self) -> response::Info {
+        response::Info {
             data: "tower-abci-kvstore-example".to_string(),
             version: "0.1.0".to_string(),
             app_version: 1,
             last_block_height: self.height as i64,
-            last_block_app_hash: self.app_hash.to_vec(),
+            last_block_app_hash: self.app_hash.to_vec().into(),
         }
     }
 
-    fn query(&self, query: Vec<u8>) -> pb::ResponseQuery {
-        let key = String::from_utf8(query).unwrap();
+    fn query(&self, query: Bytes) -> response::Query {
+        let key = String::from_utf8(query.to_vec()).unwrap();
         let (value, log) = match self.store.get(&key) {
             Some(value) => (value.clone(), "exists".to_string()),
             None => ("".to_string(), "does not exist".to_string()),
         };
 
-        // XXX there should be better way to construct responses than this,
-        // but that probably requires nice domain types in tendermint-rs.
-        pb::ResponseQuery {
-            code: 0,
+        response::Query {
             log,
-            info: "".to_string(),
-            index: 0,
-            key: key.into_bytes(),
-            value: value.into_bytes(),
-            proof_ops: None,
-            height: self.height as i64,
-            codespace: "".to_string(),
+            key: key.into_bytes().into(),
+            value: value.into_bytes().into(),
+            ..Default::default()
         }
     }
 
-    fn deliver_tx(&mut self, tx: Vec<u8>) -> pb::ResponseDeliverTx {
-        let tx = String::from_utf8(tx).unwrap();
+    fn deliver_tx(&mut self, tx: Bytes) -> response::DeliverTx {
+        let tx = String::from_utf8(tx.to_vec()).unwrap();
         let tx_parts = tx.split('=').collect::<Vec<_>>();
         let (key, value) = match (tx_parts.get(0), tx_parts.get(1)) {
             (Some(key), Some(value)) => (*key, *value),
@@ -112,46 +107,27 @@ impl KVStore {
         };
         self.store.insert(key.to_string(), value.to_string());
 
-        // XXX there should be better way to construct responses than this,
-        // but that probably requires nice domain types in tendermint-rs.
-        pb::ResponseDeliverTx {
-            code: 0,
-            data: vec![],
-            log: "".to_string(),
-            info: "".to_string(),
-            gas_wanted: 0,
-            gas_used: 0,
-            events: vec![pb::Event {
-                r#type: "app".to_string(),
-                attributes: vec![
-                    pb::EventAttribute {
-                        key: "key".as_bytes().to_owned(),
-                        value: key.as_bytes().to_owned(),
-                        index: true,
-                    },
-                    pb::EventAttribute {
-                        key: "index_key".as_bytes().to_owned(),
-                        value: "index is working".as_bytes().to_owned(),
-                        index: true,
-                    },
-                    pb::EventAttribute {
-                        key: "noindex_key".as_bytes().to_owned(),
-                        value: "index is working".as_bytes().to_owned(),
-                        index: false,
-                    },
+        response::DeliverTx {
+            events: vec![Event::new(
+                "app",
+                vec![
+                    ("key", key).index(),
+                    ("index_key", "index is working").index(),
+                    ("noindex_key", "index is working").no_index(),
                 ],
-            }],
-            codespace: "".to_string(),
+            )],
+            ..Default::default()
         }
     }
 
-    fn commit(&mut self) -> pb::ResponseCommit {
+    fn commit(&mut self) -> response::Commit {
         let retain_height = self.height as i64;
         // As in the other kvstore examples, just use store.len() as the "hash"
         self.app_hash = (self.store.len() as u64).to_be_bytes();
         self.height += 1;
-        pb::ResponseCommit {
-            data: self.app_hash.to_vec(),
+
+        response::Commit {
+            data: self.app_hash.to_vec().into(),
             retain_height,
         }
     }
