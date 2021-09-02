@@ -1,10 +1,6 @@
 An experimental interface for [ABCI] built on [Tower]'s [`Service`][svc]
 abstraction.
 
-```ascii,no_run
-cargo +nightly doc --features "doc" # uses nightly-only `doc = include_str!`
-```
-
 [ABCI] is the interface between Tendermint (a consensus engine for BFT
 replication of a state machine), and an arbitrary application (the state
 machine to be replicated). The ABCI interface consists of a set of requests
