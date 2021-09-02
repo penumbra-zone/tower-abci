@@ -1,8 +1,8 @@
 #![doc = include_str!("../README.md")]
 
 use tendermint::abci::{
-    ConsensusRequest, ConsensusResponse, InfoRequest, InfoResponse,
-    MempoolRequest, MempoolResponse, Request, Response, SnapshotRequest, SnapshotResponse,
+    ConsensusRequest, ConsensusResponse, InfoRequest, InfoResponse, MempoolRequest,
+    MempoolResponse, Request, Response, SnapshotRequest, SnapshotResponse,
 };
 
 /// A fork of tower::buffer @ `e1760d38` that has four queues feeding
