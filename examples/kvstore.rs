@@ -12,10 +12,7 @@ use futures::future::FutureExt;
 use structopt::StructOpt;
 use tower::{Service, ServiceBuilder};
 
-use tendermint::abci::{
-    event::{Event, EventAttributeIndexExt},
-    response, Request, Response,
-};
+use tendermint::abci::{response, Event, EventAttributeIndexExt, Request, Response};
 
 use tower_abci::{split, BoxError, Server};
 
