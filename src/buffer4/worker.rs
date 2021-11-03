@@ -3,6 +3,7 @@ use super::{
     message::Message,
 };
 use futures::stream::StreamExt;
+use std::future::Future;
 use std::sync::{Arc, Mutex, Weak};
 use tokio::{
     select,
@@ -153,7 +154,7 @@ where
                 // Using a biased select means the channels will be polled
                 // in priority order, not in a random (fair) order.
                 biased;
-                msg = self.rx1.as_mut().unwrap().recv(), if self.rx1.is_some() => {
+                msg = option_and_then(self.rx1.as_mut(), |rx| rx.recv()) => {
                     match msg {
                         Some(msg) => {
                             let span = msg.span.clone();
@@ -162,7 +163,7 @@ where
                         None => self.rx1 = None,
                     }
                 }
-                msg = self.rx2.as_mut().unwrap().recv(), if self.rx2.is_some() => {
+                msg = option_and_then(self.rx2.as_mut(), |rx| rx.recv()) => {
                     match msg {
                         Some(msg) => {
                             let span = msg.span.clone();
@@ -171,7 +172,7 @@ where
                         None => self.rx2 = None,
                     }
                 }
-                msg = self.rx3.as_mut().unwrap().recv(), if self.rx2.is_some() => {
+                msg = option_and_then(self.rx3.as_mut(), |rx| rx.recv()) => {
                     match msg {
                         Some(msg) => {
                             let span = msg.span.clone();
@@ -180,7 +181,7 @@ where
                         None => self.rx3 = None,
                     }
                 }
-                msg = self.rx4.as_mut().unwrap().recv(), if self.rx2.is_some() => {
+                msg = option_and_then(self.rx4.as_mut(), |rx| rx.recv()) => {
                     match msg {
                         Some(msg) => {
                             let span = msg.span.clone();
@@ -224,4 +225,12 @@ impl Handle {
             .map(|svc_err| svc_err.clone().into())
             .unwrap_or_else(|| Closed::new().into())
     }
+}
+
+async fn option_and_then<T, U, F, Fut>(x: Option<T>, f: F) -> Option<U>
+where
+    F: FnOnce(T) -> Fut,
+    Fut: Future<Output = Option<U>>,
+{
+    f(x?).await
 }
