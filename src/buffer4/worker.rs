@@ -226,6 +226,6 @@ impl Handle {
     }
 }
 
-async fn recv_option<T>(x: Option<&mut mpsc::Receiver<Option<T>>>) -> Option<T> {
+async fn recv_option<T>(x: Option<&mut mpsc::UnboundedReceiver<T>>) -> Option<T> {
     x?.recv().await
 }
