@@ -3,7 +3,6 @@ use super::{
     message::Message,
 };
 use futures::stream::StreamExt;
-use std::future::Future;
 use std::sync::{Arc, Mutex, Weak};
 use tokio::{
     select,
@@ -154,7 +153,7 @@ where
                 // Using a biased select means the channels will be polled
                 // in priority order, not in a random (fair) order.
                 biased;
-                msg = option_and_then(self.rx1.as_mut(), |rx| rx.recv()) => {
+                msg = recv_option(self.rx1.as_mut()) => {
                     match msg {
                         Some(msg) => {
                             let span = msg.span.clone();
@@ -163,7 +162,7 @@ where
                         None => self.rx1 = None,
                     }
                 }
-                msg = option_and_then(self.rx2.as_mut(), |rx| rx.recv()) => {
+                msg = recv_option(self.rx2.as_mut()) => {
                     match msg {
                         Some(msg) => {
                             let span = msg.span.clone();
@@ -172,7 +171,7 @@ where
                         None => self.rx2 = None,
                     }
                 }
-                msg = option_and_then(self.rx3.as_mut(), |rx| rx.recv()) => {
+                msg = recv_option(self.rx3.as_mut()) => {
                     match msg {
                         Some(msg) => {
                             let span = msg.span.clone();
@@ -181,7 +180,7 @@ where
                         None => self.rx3 = None,
                     }
                 }
-                msg = option_and_then(self.rx4.as_mut(), |rx| rx.recv()) => {
+                msg = recv_option(self.rx4.as_mut()) => {
                     match msg {
                         Some(msg) => {
                             let span = msg.span.clone();
@@ -227,10 +226,6 @@ impl Handle {
     }
 }
 
-async fn option_and_then<T, U, F, Fut>(x: Option<T>, f: F) -> Option<U>
-where
-    F: FnOnce(T) -> Fut,
-    Fut: Future<Output = Option<U>>,
-{
-    f(x?).await
+async fn recv_option<T>(x: Option<&mut mpsc::Receiver<Option<T>>>)) -> Option<T> {
+    x?.recv().await
 }
