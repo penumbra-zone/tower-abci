@@ -153,7 +153,7 @@ where
                 // Using a biased select means the channels will be polled
                 // in priority order, not in a random (fair) order.
                 biased;
-                msg = self.rx1.as_mut().unwrap().recv(), if self.rx1.is_some() => {
+                msg = recv_option(self.rx1.as_mut()) => {
                     match msg {
                         Some(msg) => {
                             let span = msg.span.clone();
@@ -162,7 +162,7 @@ where
                         None => self.rx1 = None,
                     }
                 }
-                msg = self.rx2.as_mut().unwrap().recv(), if self.rx2.is_some() => {
+                msg = recv_option(self.rx2.as_mut()) => {
                     match msg {
                         Some(msg) => {
                             let span = msg.span.clone();
@@ -171,7 +171,7 @@ where
                         None => self.rx2 = None,
                     }
                 }
-                msg = self.rx3.as_mut().unwrap().recv(), if self.rx2.is_some() => {
+                msg = recv_option(self.rx3.as_mut()) => {
                     match msg {
                         Some(msg) => {
                             let span = msg.span.clone();
@@ -180,7 +180,7 @@ where
                         None => self.rx3 = None,
                     }
                 }
-                msg = self.rx4.as_mut().unwrap().recv(), if self.rx2.is_some() => {
+                msg = recv_option(self.rx4.as_mut()) => {
                     match msg {
                         Some(msg) => {
                             let span = msg.span.clone();
@@ -224,4 +224,8 @@ impl Handle {
             .map(|svc_err| svc_err.clone().into())
             .unwrap_or_else(|| Closed::new().into())
     }
+}
+
+async fn recv_option<T>(x: Option<&mut mpsc::UnboundedReceiver<T>>) -> Option<T> {
+    x?.recv().await
 }
