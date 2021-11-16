@@ -20,7 +20,7 @@ use tower_abci::{split, BoxError, Server};
 #[derive(Clone, Debug)]
 pub struct KVStore {
     store: HashMap<String, String>,
-    height: u64,
+    height: u32,
     app_hash: [u8; 8],
 }
 
@@ -75,7 +75,7 @@ impl KVStore {
             data: "tower-abci-kvstore-example".to_string(),
             version: "0.1.0".to_string(),
             app_version: 1,
-            last_block_height: self.height as i64,
+            last_block_height: self.height.into(),
             last_block_app_hash: self.app_hash.to_vec().into(),
         }
     }
@@ -118,7 +118,7 @@ impl KVStore {
     }
 
     fn commit(&mut self) -> response::Commit {
-        let retain_height = self.height as i64;
+        let retain_height = self.height.into();
         // As in the other kvstore examples, just use store.len() as the "hash"
         self.app_hash = (self.store.len() as u64).to_be_bytes();
         self.height += 1;
