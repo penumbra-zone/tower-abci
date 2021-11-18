@@ -153,7 +153,7 @@ where
                 // Using a biased select means the channels will be polled
                 // in priority order, not in a random (fair) order.
                 biased;
-                msg = recv_option(self.rx1.as_mut()) => {
+                msg = recv_option(self.rx1.as_mut()), if self.rx1.is_some() => {
                     match msg {
                         Some(msg) => {
                             let span = msg.span.clone();
@@ -162,7 +162,7 @@ where
                         None => self.rx1 = None,
                     }
                 }
-                msg = recv_option(self.rx2.as_mut()) => {
+                msg = recv_option(self.rx2.as_mut()), if self.rx2.is_some() => {
                     match msg {
                         Some(msg) => {
                             let span = msg.span.clone();
@@ -171,7 +171,7 @@ where
                         None => self.rx2 = None,
                     }
                 }
-                msg = recv_option(self.rx3.as_mut()) => {
+                msg = recv_option(self.rx3.as_mut()), if self.rx3.is_some() => {
                     match msg {
                         Some(msg) => {
                             let span = msg.span.clone();
@@ -180,7 +180,7 @@ where
                         None => self.rx3 = None,
                     }
                 }
-                msg = recv_option(self.rx4.as_mut()) => {
+                msg = recv_option(self.rx4.as_mut()), if self.rx4.is_some() => {
                     match msg {
                         Some(msg) => {
                             let span = msg.span.clone();
