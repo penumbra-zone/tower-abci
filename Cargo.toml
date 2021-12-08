@@ -8,10 +8,8 @@ license = "MIT"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tendermint-proto = { git = "https://github.com/penumbra-zone/tendermint-rs.git", branch = "abci-domain-types_r14" }
-tendermint = { git = "https://github.com/penumbra-zone/tendermint-rs.git", branch = "abci-domain-types_r14" }
-# tendermint-proto = { path = "../tendermint-rs/proto" }
-# tendermint = { path = "../tendermint-rs/tendermint" }
+tendermint-proto = { git = "https://github.com/penumbra-zone/tendermint-rs.git", branch = "master" }
+tendermint = { git = "https://github.com/penumbra-zone/tendermint-rs.git", branch = "master" }
 bytes = "1"
 tokio = { version = "1", features = ["full"]}
 tokio-util = { version = "0.6", features = ["codec"] }
