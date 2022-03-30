@@ -26,9 +26,6 @@
 use std::task::{Context, Poll};
 
 use tower::Service;
-use tracing::{Level, Span};
-use tracing_tower::request_span::Service as TraceRequestService;
-use tracing_tower::{InstrumentableService, InstrumentedService};
 
 use crate::{
     buffer4::Buffer, BoxError, ConsensusRequest, ConsensusResponse, InfoRequest, InfoResponse,
@@ -52,34 +49,11 @@ where
     let bound = std::cmp::max(1, bound);
     let (buffer1, buffer2, buffer3, buffer4) = Buffer::new(service, bound);
 
-    // Using a closure means that the span will be constructed for *each*
-    // request, not once for the service. This is important because it means
-    // that the span will be constructed with the parent set to the ambient span
-    // when the request processing starts, meaning that we don't lose any
-    // context.
-    //
-    // The : fn(&Request) -> Span annotation ensures that the closure type
-    // resolves to a closure with a generic request lifetime, instead of a
-    // specific request lifetime.
-
-    let consensus_span: fn(&Request) -> Span = |_| tracing::span!(Level::ERROR, "consensus");
-    let mempool_span: fn(&Request) -> Span = |_| tracing::span!(Level::ERROR, "mempool");
-    let snapshot_span: fn(&Request) -> Span = |_| tracing::span!(Level::ERROR, "snapshot");
-    let info_span: fn(&Request) -> Span = |_| tracing::span!(Level::ERROR, "info");
-
     (
-        Consensus {
-            inner: buffer1.trace_requests(consensus_span),
-        },
-        Mempool {
-            inner: buffer2.trace_requests(mempool_span),
-        },
-        Snapshot {
-            inner: buffer3.trace_requests(snapshot_span),
-        },
-        Info {
-            inner: buffer4.trace_requests(info_span),
-        },
+        Consensus { inner: buffer1 },
+        Mempool { inner: buffer2 },
+        Snapshot { inner: buffer3 },
+        Info { inner: buffer4 },
     )
 }
 
@@ -88,7 +62,7 @@ pub struct Consensus<S>
 where
     S: Service<Request, Response = Response, Error = BoxError>,
 {
-    inner: TraceRequestService<Buffer<S, Request>, Request, fn(&Request) -> Span>,
+    inner: Buffer<S, Request>,
 }
 
 // Implementing Clone manually avoids an (incorrect) derived S: Clone bound
@@ -127,7 +101,7 @@ pub struct Mempool<S>
 where
     S: Service<Request, Response = Response, Error = BoxError>,
 {
-    inner: TraceRequestService<Buffer<S, Request>, Request, fn(&Request) -> Span>,
+    inner: Buffer<S, Request>,
 }
 
 // Implementing Clone manually avoids an (incorrect) derived S: Clone bound
@@ -166,7 +140,7 @@ pub struct Info<S>
 where
     S: Service<Request, Response = Response, Error = BoxError>,
 {
-    inner: TraceRequestService<Buffer<S, Request>, Request, fn(&Request) -> Span>,
+    inner: Buffer<S, Request>,
 }
 
 // Implementing Clone manually avoids an (incorrect) derived S: Clone bound
@@ -205,7 +179,7 @@ pub struct Snapshot<S>
 where
     S: Service<Request, Response = Response, Error = BoxError>,
 {
-    inner: TraceRequestService<Buffer<S, Request>, Request, fn(&Request) -> Span>,
+    inner: Buffer<S, Request>,
 }
 
 // Implementing Clone manually avoids an (incorrect) derived S: Clone bound
@@ -261,8 +235,7 @@ pub mod futures {
         S: Service<Request, Response = Response, Error = BoxError>,
     {
         #[pin]
-        pub(super) inner:
-            <InstrumentedService<Buffer<S, Request>, Request> as Service<Request>>::Future,
+        pub(super) inner: <Buffer<S, Request> as Service<Request>>::Future,
     }
 
     impl<S> Future for ConsensusFuture<S>
@@ -288,8 +261,7 @@ pub mod futures {
         S: Service<Request, Response = Response, Error = BoxError>,
     {
         #[pin]
-        pub(super) inner:
-            <InstrumentedService<Buffer<S, Request>, Request> as Service<Request>>::Future,
+        pub(super) inner: <Buffer<S, Request> as Service<Request>>::Future,
     }
 
     impl<S> Future for MempoolFuture<S>
@@ -315,8 +287,7 @@ pub mod futures {
         S: Service<Request, Response = Response, Error = BoxError>,
     {
         #[pin]
-        pub(super) inner:
-            <InstrumentedService<Buffer<S, Request>, Request> as Service<Request>>::Future,
+        pub(super) inner: <Buffer<S, Request> as Service<Request>>::Future,
     }
 
     impl<S> Future for InfoFuture<S>
@@ -342,8 +313,7 @@ pub mod futures {
         S: Service<Request, Response = Response, Error = BoxError>,
     {
         #[pin]
-        pub(super) inner:
-            <InstrumentedService<Buffer<S, Request>, Request> as Service<Request>>::Future,
+        pub(super) inner: <Buffer<S, Request> as Service<Request>>::Future,
     }
 
     impl<S> Future for SnapshotFuture<S>
