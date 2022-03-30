@@ -9,8 +9,6 @@ use tokio::{
 };
 use tokio_util::codec::{FramedRead, FramedWrite};
 use tower::{Service, ServiceExt};
-use tracing::Instrument;
-use tracing::Level;
 
 use tendermint::abci::MethodKind;
 
@@ -152,17 +150,18 @@ where
 
         loop {
             match listener.accept().await {
-                Ok((socket, addr)) => {
+                Ok((socket, _addr)) => {
                     // set parent: None for the connection span, as it should
                     // exist independently of the listener's spans.
-                    let span = tracing::span!(parent: None, Level::ERROR, "abci", ?addr);
+                    //let span = tracing::span!(parent: None, Level::ERROR, "abci", ?addr);
                     let conn = Connection {
                         consensus: self.consensus.clone(),
                         mempool: self.mempool.clone(),
                         info: self.info.clone(),
                         snapshot: self.snapshot.clone(),
                     };
-                    tokio::spawn(async move { conn.run(socket).await.unwrap() }.instrument(span));
+                    //tokio::spawn(async move { conn.run(socket).await.unwrap() }.instrument(span));
+                    tokio::spawn(async move { conn.run(socket).await.unwrap() });
                 }
                 Err(e) => {
                     tracing::warn!({ %e }, "error accepting new tcp connection");
