@@ -85,36 +85,17 @@ where
     }
 
     pub fn finish(self) -> Option<Server<C, M, I, S>> {
-        let consensus = if let Some(consensus) = self.consensus {
-            consensus
-        } else {
-            return None;
-        };
-
-        let mempool = if let Some(mempool) = self.mempool {
-            mempool
-        } else {
-            return None;
-        };
-
-        let info = if let Some(info) = self.info {
-            info
-        } else {
-            return None;
-        };
-
-        let snapshot = if let Some(snapshot) = self.snapshot {
-            snapshot
-        } else {
-            return None;
-        };
-
-        Some(Server {
-            consensus,
-            mempool,
-            info,
-            snapshot,
-        })
+        match (self.consensus, self.mempool, self.info, self.snapshot) {
+            (Some(c), Some(m), Some(i), Some(s)) => {
+                return Some(Server {
+                    consensus: c,
+                    mempool: m,
+                    info: i,
+                    snapshot: s,
+                })
+            }
+            _ => return None,
+        }
     }
 }
 
