@@ -8,17 +8,18 @@ license = "MIT"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tendermint-proto = "0.24.0-pre.1"
-tendermint = "0.24.0-pre.1"
+tendermint = { git = "https://github.com/penumbra-zone/tendermint-rs", branch = "penumbra-034" }
+tendermint-proto = { git = "https://github.com/penumbra-zone/tendermint-rs", branch = "penumbra-034" }
+
 bytes = "1"
-tokio = { version = "1", features = ["full"]}
-tokio-util = { version = "0.6", features = ["codec"] }
+tokio = { version = "1.21.1", features = ["full"]}
+tokio-util = { version = "0.7.4", features = ["codec"] }
 tokio-stream = "0.1"
-tower = { version = "0.4", features = ["full"]}
+tower = { version = "0.4.13", features = ["full"]}
 pin-project = "1"
 futures = "0.3"
 tracing = "0.1"
-prost = "0.9"
+prost = "0.11"
 
 [dev-dependencies]
 structopt = "0.3"
