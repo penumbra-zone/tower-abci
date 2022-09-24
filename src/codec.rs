@@ -2,7 +2,18 @@ use std::marker::PhantomData;
 
 use tokio_util::codec::{Decoder, Encoder};
 
-use bytes::{BufMut, BytesMut};
+use bytes::{Buf, BufMut, BytesMut};
+
+// encode_varint and decode_varint will be removed once
+// https://github.com/tendermint/tendermint/issues/5783 lands in Tendermint.
+pub fn encode_varint<B: BufMut>(val: u64, mut buf: &mut B) {
+    prost::encoding::encode_varint(val << 1, &mut buf);
+}
+
+pub fn decode_varint<B: Buf>(mut buf: &mut B) -> Result<u64, prost::DecodeError> {
+    let len = prost::encoding::decode_varint(&mut buf)?;
+    Ok(len >> 1)
+}
 
 pub struct Decode<M> {
     state: DecodeState,
@@ -39,10 +50,10 @@ impl<M: prost::Message + Default> Decoder for Decode<M> {
                 // a sad hack, but it works.
                 // fix this
                 let mut tmp = src.clone().freeze();
-                let len = match prost::encoding::decode_varint(&mut tmp) {
+                let len = match decode_varint(&mut tmp) {
                     Ok(_) => {
                         // advance the real buffer
-                        prost::encoding::decode_varint(src).unwrap() as usize
+                        decode_varint(src).unwrap() as usize
                     }
                     Err(_) => {
                         tracing::trace!(?self.state, src.len = src.len(), "waiting for header data");
@@ -94,7 +105,7 @@ impl<M: prost::Message + Sized + std::fmt::Debug> Encoder<M> for Encode<M> {
         let mut buf = BytesMut::new();
         item.encode(&mut buf)?;
         let buf = buf.freeze();
-        prost::encoding::encode_varint(buf.len() as u64, dst);
+        encode_varint(buf.len() as u64, dst);
         dst.put(buf);
 
         Ok(())
