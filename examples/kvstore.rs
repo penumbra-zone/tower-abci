@@ -53,6 +53,12 @@ impl Service<Request> for KVStore {
             Request::OfferSnapshot(_) => Response::OfferSnapshot(Default::default()),
             Request::LoadSnapshotChunk(_) => Response::LoadSnapshotChunk(Default::default()),
             Request::ApplySnapshotChunk(_) => Response::ApplySnapshotChunk(Default::default()),
+            // response::SetOption is missing a Default impl as of tm-rs 0.26
+            Request::SetOption(_) => Response::SetOption(response::SetOption {
+                code: 0,
+                log: String::new(),
+                info: String::new(),
+            }),
         };
         tracing::info!(?rsp);
         async move { Ok(rsp) }.boxed()
