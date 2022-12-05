@@ -4,7 +4,10 @@ version = "0.2.0"
 authors = ["Henry de Valence <hdevalence@penumbra.zone>"]
 edition = "2021"
 license = "MIT"
-
+description = "A `tower`-based interface to Tendermint's ABCI"
+repository = "https://github.com/penumbra-zone/tower-abci"
+homepage = "https://github.com/penumbra-zone/tower-abci"
+documentation = "https://docs.rs/tower-abci"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
