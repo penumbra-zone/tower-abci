@@ -55,7 +55,7 @@ impl Service<Request> for KVStore {
             Request::ApplySnapshotChunk(_) => Response::ApplySnapshotChunk(Default::default()),
             // response::SetOption is missing a Default impl as of tm-rs 0.26
             Request::SetOption(_) => Response::SetOption(response::SetOption {
-                code: 0,
+                code: tendermint::abci::Code::Ok,
                 log: String::new(),
                 info: String::new(),
             }),
@@ -82,7 +82,7 @@ impl KVStore {
             version: "0.1.0".to_string(),
             app_version: 1,
             last_block_height: self.height.into(),
-            last_block_app_hash: self.app_hash.to_vec().into(),
+            last_block_app_hash: self.app_hash.to_vec().try_into().unwrap(),
         }
     }
 
