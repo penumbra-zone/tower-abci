@@ -17,7 +17,7 @@ use tendermint::abci::{response, Event, EventAttributeIndexExt, Request, Respons
 use tower_abci::{split, BoxError, Server};
 
 /// In-memory, hashmap-backed key-value store ABCI application.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct KVStore {
     store: HashMap<String, String>,
     height: u32,
@@ -65,16 +65,6 @@ impl Service<Request> for KVStore {
     }
 }
 
-impl Default for KVStore {
-    fn default() -> Self {
-        Self {
-            store: HashMap::default(),
-            height: 0,
-            app_hash: [0; 8],
-        }
-    }
-}
-
 impl KVStore {
     fn info(&self) -> response::Info {
         response::Info {
@@ -104,7 +94,7 @@ impl KVStore {
     fn deliver_tx(&mut self, tx: Bytes) -> response::DeliverTx {
         let tx = String::from_utf8(tx.to_vec()).unwrap();
         let tx_parts = tx.split('=').collect::<Vec<_>>();
-        let (key, value) = match (tx_parts.get(0), tx_parts.get(1)) {
+        let (key, value) = match (tx_parts.first(), tx_parts.get(1)) {
             (Some(key), Some(value)) => (*key, *value),
             _ => (tx.as_ref(), tx.as_ref()),
         };
