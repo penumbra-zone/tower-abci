@@ -82,6 +82,7 @@ where
     /// This is useful if you do not want to spawn directly onto the tokio runtime
     /// but instead want to use your own executor. This will return the [`Buffer`] and
     /// the background `Worker` that you can then spawn.
+    #[allow(clippy::type_complexity)]
     pub fn pair(
         service: T,
         bound: usize,

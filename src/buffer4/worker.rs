@@ -43,6 +43,7 @@ where
     T: Service<Request>,
     T::Error: Into<crate::BoxError>,
 {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         service: T,
         rx1: mpsc::UnboundedReceiver<Message<Request, T::Future>>,
@@ -110,10 +111,18 @@ where
 
         *inner = Some(error.clone());
         drop(inner);
-        self.rx1.as_mut().map(|chan| chan.close());
-        self.rx2.as_mut().map(|chan| chan.close());
-        self.rx3.as_mut().map(|chan| chan.close());
-        self.rx4.as_mut().map(|chan| chan.close());
+        if let Some(chan) = self.rx1.as_mut() {
+            chan.close()
+        }
+        if let Some(chan) = self.rx2.as_mut() {
+            chan.close()
+        }
+        if let Some(chan) = self.rx3.as_mut() {
+            chan.close()
+        }
+        if let Some(chan) = self.rx4.as_mut() {
+            chan.close()
+        }
 
         self.failed = Some(error);
     }

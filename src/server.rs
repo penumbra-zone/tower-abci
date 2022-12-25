@@ -85,29 +85,10 @@ where
     }
 
     pub fn finish(self) -> Option<Server<C, M, I, S>> {
-        let consensus = if let Some(consensus) = self.consensus {
-            consensus
-        } else {
-            return None;
-        };
-
-        let mempool = if let Some(mempool) = self.mempool {
-            mempool
-        } else {
-            return None;
-        };
-
-        let info = if let Some(info) = self.info {
-            info
-        } else {
-            return None;
-        };
-
-        let snapshot = if let Some(snapshot) = self.snapshot {
-            snapshot
-        } else {
-            return None;
-        };
+        let consensus = self.consensus?;
+        let mempool = self.mempool?;
+        let info = self.info?;
+        let snapshot = self.snapshot?;
 
         Some(Server {
             consensus,
@@ -221,22 +202,22 @@ where
                             let request = request.try_into().expect("checked kind");
                             let response = self.consensus.ready().await?.call(request);
                             // Need to box here for type erasure
-                            responses.push(response.map_ok(Response::from).boxed());
+                            responses.push_back(response.map_ok(Response::from).boxed());
                         }
                         MethodKind::Mempool => {
                             let request = request.try_into().expect("checked kind");
                             let response = self.mempool.ready().await?.call(request);
-                            responses.push(response.map_ok(Response::from).boxed());
+                            responses.push_back(response.map_ok(Response::from).boxed());
                         }
                         MethodKind::Snapshot => {
                             let request = request.try_into().expect("checked kind");
                             let response = self.snapshot.ready().await?.call(request);
-                            responses.push(response.map_ok(Response::from).boxed());
+                            responses.push_back(response.map_ok(Response::from).boxed());
                         }
                         MethodKind::Info => {
                             let request = request.try_into().expect("checked kind");
                             let response = self.info.ready().await?.call(request);
-                            responses.push(response.map_ok(Response::from).boxed());
+                            responses.push_back(response.map_ok(Response::from).boxed());
                         }
                         MethodKind::Flush => {
                             // Instead of propagating Flush requests to the application,
