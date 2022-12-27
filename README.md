@@ -1,5 +1,4 @@
-An experimental interface for [ABCI] built on [Tower]'s [`Service`][svc]
-abstraction.
+An interface for [ABCI] built on [Tower]'s [`Service`][svc] abstraction.
 
 [ABCI] is the interface between Tendermint (a consensus engine for BFT
 replication of a state machine), and an arbitrary application (the state
@@ -12,8 +11,7 @@ provides combinators that allow generic composition of additional behavior,
 e.g., timeouts, buffering, load-shedding, rate-limiting, instrumentation,
 etc.
 
-This crate is an experiment attempting to use Tower to define an asynchronous
-ABCI interface.  It has two parts:
+This crate uses Tower to define an asynchronous ABCI interface.  It has two parts:
 
 1. An ABCI server, which listens for connections and forwards ABCI requests
 to one of four user-provided [`Service`][svc]s, each responsible for processing
@@ -64,7 +62,6 @@ requirements, starting with a synchronous application, then refactoring it to
 do some processing asynchronously, then doing more processing asynchronously,
 then splitting out one standalone service, then using entirely distinct
 services, etc.
-
 
 [ABCI]: https://docs.tendermint.com/master/spec/abci/
 [Tower]: https://docs.rs/tower
