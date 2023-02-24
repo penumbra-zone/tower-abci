@@ -16,6 +16,4 @@ jobs:
           toolchain: stable
           override: true
       - name: Publish crate
-        run: |
-          cd crates/ibc
-          cargo publish --token ${{ secrets.CRATES_TOKEN }}
+        run: cargo publish --token ${{ secrets.CRATES_TOKEN }}
