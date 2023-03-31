@@ -56,10 +56,14 @@ impl Service<Request> for KVStore {
             Request::OfferSnapshot(_) => Response::OfferSnapshot(Default::default()),
             Request::LoadSnapshotChunk(_) => Response::LoadSnapshotChunk(Default::default()),
             Request::ApplySnapshotChunk(_) => Response::ApplySnapshotChunk(Default::default()),
-            Request::PrepareProposal(_) => {
-                Response::PrepareProposal(PrepareProposal { txs: vec![] })
+
+            // Note: https://github.com/tendermint/tendermint/blob/v0.37.x/spec/abci/abci%2B%2B_tmint_expected_behavior.md#adapting-existing-applications-that-use-abci
+            Request::PrepareProposal(prepare_prop) => Response::PrepareProposal(PrepareProposal {
+                txs: prepare_prop.txs,
+            }),
+            Request::ProcessProposal(..) => {
+                Response::ProcessProposal(response::ProcessProposal::Accept)
             }
-            Request::ProcessProposal(_) => Response::ProcessProposal(Default::default()),
         };
         tracing::info!(?rsp);
         async move { Ok(rsp) }.boxed()
