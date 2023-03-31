@@ -48,12 +48,17 @@ impl<M: prost::Message + Default> Decoder for Decode<M> {
                 // buffer regardless of success, but Decoder assumes that when
                 // the buffer advances we've consumed the data. this is sort of
                 // a sad hack, but it works.
-                // fix this
+                // TODO(erwan): fix this
+
+                // Tendermint socket protocol:
+                //   "Messages are serialized using Protobuf3 and length-prefixed
+                //    with an unsigned varint"
+                // See: https://github.com/tendermint/tendermint/blob/v0.37.x/spec/abci/abci++_client_server.md#socket
                 let mut tmp = src.clone().freeze();
-                let len = match decode_varint(&mut tmp) {
+                let len = match prost::encoding::decode_varint(&mut tmp) {
                     Ok(_) => {
                         // advance the real buffer
-                        decode_varint(src).unwrap() as usize
+                        prost::encoding::decode_varint(src).unwrap() as usize
                     }
                     Err(_) => {
                         tracing::trace!(?self.state, src.len = src.len(), "waiting for header data");
@@ -101,11 +106,15 @@ impl<M: prost::Message + Sized + std::fmt::Debug> Encoder<M> for Encode<M> {
     type Error = crate::BoxError;
 
     fn encode(&mut self, item: M, dst: &mut BytesMut) -> Result<(), Self::Error> {
-        // rewrite this to avoid extra copy?
         let mut buf = BytesMut::new();
         item.encode(&mut buf)?;
         let buf = buf.freeze();
-        encode_varint(buf.len() as u64, dst);
+
+        // Tendermint socket protocol:
+        //   "Messages are serialized using Protobuf3 and length-prefixed
+        //    with an unsigned varint"
+        // See: https://github.com/tendermint/tendermint/blob/v0.37.x/spec/abci/abci++_client_server.md#socket
+        prost::encoding::encode_varint(buf.len() as u64, dst);
         dst.put(buf);
 
         Ok(())
