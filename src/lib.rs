@@ -10,7 +10,7 @@ use tendermint::abci::{
 mod buffer4;
 
 mod server;
-pub use server::Server;
+pub use server::{Server, ServerBuilder};
 
 pub mod split;
 
