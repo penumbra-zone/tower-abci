@@ -2,18 +2,7 @@ use std::marker::PhantomData;
 
 use tokio_util::codec::{Decoder, Encoder};
 
-use bytes::{Buf, BufMut, BytesMut};
-
-// encode_varint and decode_varint will be removed once
-// https://github.com/tendermint/tendermint/issues/5783 lands in Tendermint.
-pub fn encode_varint<B: BufMut>(val: u64, mut buf: &mut B) {
-    prost::encoding::encode_varint(val << 1, &mut buf);
-}
-
-pub fn decode_varint<B: Buf>(mut buf: &mut B) -> Result<u64, prost::DecodeError> {
-    let len = prost::encoding::decode_varint(&mut buf)?;
-    Ok(len >> 1)
-}
+use bytes::{BufMut, BytesMut};
 
 pub struct Decode<M> {
     state: DecodeState,
