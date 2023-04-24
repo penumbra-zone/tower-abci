@@ -12,9 +12,12 @@ use futures::future::FutureExt;
 use structopt::StructOpt;
 use tower::{Service, ServiceBuilder};
 
-use tendermint::abci::{response, Event, EventAttributeIndexExt, Request, Response};
+use tendermint::abci::{
+    response::{self, PrepareProposal},
+    Event, EventAttributeIndexExt, Request, Response,
+};
 
-use tower_abci::{split, BoxError, Server};
+use tower_abci::{split, v034::Server, BoxError};
 
 /// In-memory, hashmap-backed key-value store ABCI application.
 #[derive(Clone, Debug, Default)]
@@ -53,12 +56,14 @@ impl Service<Request> for KVStore {
             Request::OfferSnapshot(_) => Response::OfferSnapshot(Default::default()),
             Request::LoadSnapshotChunk(_) => Response::LoadSnapshotChunk(Default::default()),
             Request::ApplySnapshotChunk(_) => Response::ApplySnapshotChunk(Default::default()),
-            // response::SetOption is missing a Default impl as of tm-rs 0.26
-            Request::SetOption(_) => Response::SetOption(response::SetOption {
-                code: tendermint::abci::Code::Ok,
-                log: String::new(),
-                info: String::new(),
+
+            // Note: https://github.com/tendermint/tendermint/blob/v0.37.x/spec/abci/abci%2B%2B_tmint_expected_behavior.md#adapting-existing-applications-that-use-abci
+            Request::PrepareProposal(prepare_prop) => Response::PrepareProposal(PrepareProposal {
+                txs: prepare_prop.txs,
             }),
+            Request::ProcessProposal(..) => {
+                Response::ProcessProposal(response::ProcessProposal::Accept)
+            }
         };
         tracing::info!(?rsp);
         async move { Ok(rsp) }.boxed()
