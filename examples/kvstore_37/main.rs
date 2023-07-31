@@ -14,10 +14,15 @@ use tower::{Service, ServiceBuilder};
 
 use tendermint::abci::{
     response::{self, PrepareProposal},
-    Event, EventAttributeIndexExt, Request, Response,
+    Event, EventAttributeIndexExt,
 };
 
-use tower_abci::{split, v037::Server, BoxError};
+use tower_abci::{
+    v037::{split, Server},
+    BoxError,
+};
+
+use tendermint::v0_37::abci::{Request, Response};
 
 /// In-memory, hashmap-backed key-value store ABCI application.
 #[derive(Clone, Debug, Default)]
