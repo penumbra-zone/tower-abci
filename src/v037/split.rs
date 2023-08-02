@@ -27,9 +27,10 @@ use std::task::{Context, Poll};
 
 use tower::Service;
 
-use crate::{
-    buffer4::Buffer, BoxError, ConsensusRequest, ConsensusResponse, InfoRequest, InfoResponse,
-    MempoolRequest, MempoolResponse, Request, Response, SnapshotRequest, SnapshotResponse,
+use crate::{buffer4::Buffer, BoxError};
+use tendermint::v0_37::abci::{
+    ConsensusRequest, ConsensusResponse, InfoRequest, InfoResponse, MempoolRequest,
+    MempoolResponse, Request, Response, SnapshotRequest, SnapshotResponse,
 };
 
 /// Splits a single `service` implementing all of ABCI into four cloneable

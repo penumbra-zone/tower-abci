@@ -11,12 +11,12 @@ use tokio_util::codec::{FramedRead, FramedWrite};
 use tower::{Service, ServiceExt};
 
 use tendermint::abci::MethodKind;
-
-use crate::{
-    BoxError, ConsensusRequest, ConsensusResponse, InfoRequest, InfoResponse, MempoolRequest,
+use tendermint::v0_34::abci::{
+    ConsensusRequest, ConsensusResponse, InfoRequest, InfoResponse, MempoolRequest,
     MempoolResponse, Request, Response, SnapshotRequest, SnapshotResponse,
 };
 
+use crate::BoxError;
 /// An ABCI server which listens for connections and forwards requests to four
 /// component ABCI [`Service`]s.
 pub struct Server<C, M, I, S> {
@@ -175,7 +175,7 @@ where
     async fn run(mut self, mut socket: TcpStream) -> Result<(), BoxError> {
         tracing::info!("listening for requests");
 
-        use tendermint_proto::abci as pb;
+        use tendermint_proto::v0_34::abci as pb;
 
         let (mut request_stream, mut response_sink) = {
             use crate::v034::codec::{Decode, Encode};
