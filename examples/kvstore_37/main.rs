@@ -145,6 +145,10 @@ struct Opt {
     /// Bind the TCP server to this port.
     #[structopt(short, long, default_value = "26658")]
     port: u16,
+
+    /// Bind the UDS server to this path
+    #[structopt(long)]
+    uds: Option<String>,
 }
 
 #[tokio::main]
@@ -161,7 +165,7 @@ async fn main() {
     // Hand those components to the ABCI server, but customize request behavior
     // for each category -- for instance, apply load-shedding only to mempool
     // and info requests, but not to consensus requests.
-    let server = Server::builder()
+    let mut server_builder = Server::builder()
         .consensus(consensus)
         .snapshot(snapshot)
         .mempool(
@@ -177,12 +181,14 @@ async fn main() {
                 .rate_limit(50, std::time::Duration::from_secs(1))
                 .service(info),
         )
-        .finish()
-        .unwrap();
-
-    // Run the ABCI server.
-    server
-        .listen(format!("{}:{}", opt.host, opt.port))
+        .with_tcp_addr(format!("{}:{}", opt.host, opt.port))
         .await
         .unwrap();
+    if let Some(uds) = &opt.uds {
+        server_builder = server_builder.with_uds_path(uds).unwrap();
+    }
+    let server = server_builder.finish().unwrap();
+
+    // Run the ABCI server.
+    server.start().await.unwrap();
 }
