@@ -299,10 +299,13 @@ where
 
         match &socket {
             SocketKind::Tcp(tcp) => {
-                tracing::info!(addr = ?tcp.local_addr().ok(), "listening for tcp requests");
+                tracing::info!(
+                    addr = tcp.local_addr().ok().map(debug),
+                    "listening for tcp requests"
+                );
             }
             SocketKind::Uds(uds) => {
-                tracing::info!(addr = ?uds.local_addr().ok(), "listening for uds requests");
+                tracing::info!(addr = ?uds.local_addr().ok().map(debug), "listening for uds requests");
             }
         }
 
