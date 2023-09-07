@@ -202,8 +202,8 @@ where
     // figure out how / if to return errors to tendermint
     async fn run(
         mut self,
-        stream: impl AsyncReadExt + std::marker::Unpin,
-        sink: impl AsyncWriteExt + std::marker::Unpin,
+        read: impl AsyncReadExt + std::marker::Unpin,
+        write: impl AsyncWriteExt + std::marker::Unpin,
     ) -> Result<(), BoxError> {
         tracing::info!("listening for requests");
 
@@ -211,7 +211,6 @@ where
 
         let (mut request_stream, mut response_sink) = {
             use crate::v037::codec::{Decode, Encode};
-            let (read, write) = (stream, sink);
             (
                 FramedRead::new(read, Decode::<pb::Request>::default()),
                 FramedWrite::new(write, Encode::<pb::Response>::default()),
