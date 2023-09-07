@@ -10,12 +10,9 @@ use std::{
 use bytes::Bytes;
 use futures::future::FutureExt;
 use structopt::StructOpt;
-use tower::{Service, ServiceBuilder};
-
 use tendermint::abci::{Event, EventAttributeIndexExt};
-
-use tendermint::v0_34::abci::response;
-use tendermint::v0_34::abci::{Request, Response};
+use tendermint::v0_34::abci::{response, Request, Response};
+use tower::{Service, ServiceBuilder};
 
 use tower_abci::{
     v034::{split, Server},
@@ -141,6 +138,10 @@ struct Opt {
     /// Bind the TCP server to this port.
     #[structopt(short, long, default_value = "26658")]
     port: u16,
+
+    /// Bind the UDS server to this path
+    #[structopt(long)]
+    uds: Option<String>,
 }
 
 #[tokio::main]
@@ -157,7 +158,7 @@ async fn main() {
     // Hand those components to the ABCI server, but customize request behavior
     // for each category -- for instance, apply load-shedding only to mempool
     // and info requests, but not to consensus requests.
-    let server = Server::builder()
+    let server_builder = Server::builder()
         .consensus(consensus)
         .snapshot(snapshot)
         .mempool(
@@ -172,13 +173,16 @@ async fn main() {
                 .buffer(100)
                 .rate_limit(50, std::time::Duration::from_secs(1))
                 .service(info),
-        )
-        .finish()
-        .unwrap();
+        );
 
-    // Run the ABCI server.
-    server
-        .listen(format!("{}:{}", opt.host, opt.port))
-        .await
-        .unwrap();
+    let server = server_builder.finish().unwrap();
+
+    if let Some(uds_path) = opt.uds {
+        server.listen_unix(uds_path).await.unwrap();
+    } else {
+        server
+            .listen_tcp(format!("{}:{}", opt.host, opt.port))
+            .await
+            .unwrap();
+    }
 }

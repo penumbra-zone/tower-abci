@@ -185,12 +185,11 @@ async fn main() {
     let server = server_builder.finish().unwrap();
 
     if let Some(uds_path) = opt.uds {
-        // Run the ABCI server.
         server.listen_unix(uds_path).await.unwrap();
     } else {
-        let tcp_addr = format!("{}:{}", opt.host, opt.port);
-
-        // Run the ABCI server.
-        server.listen_tcp(tcp_addr).await.unwrap();
+        server
+            .listen_tcp(format!("{}:{}", opt.host, opt.port))
+            .await
+            .unwrap();
     }
 }
