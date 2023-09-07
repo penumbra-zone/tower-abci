@@ -165,7 +165,7 @@ async fn main() {
     // Hand those components to the ABCI server, but customize request behavior
     // for each category -- for instance, apply load-shedding only to mempool
     // and info requests, but not to consensus requests.
-    let mut server_builder = Server::builder()
+    let server_builder = Server::builder()
         .consensus(consensus)
         .snapshot(snapshot)
         .mempool(
@@ -180,15 +180,17 @@ async fn main() {
                 .buffer(100)
                 .rate_limit(50, std::time::Duration::from_secs(1))
                 .service(info),
-        )
-        .with_tcp_addr(format!("{}:{}", opt.host, opt.port))
-        .await
-        .unwrap();
-    if let Some(uds) = &opt.uds {
-        server_builder = server_builder.with_uds_path(uds).unwrap();
-    }
+        );
+
     let server = server_builder.finish().unwrap();
 
-    // Run the ABCI server.
-    server.start().await.unwrap();
+    if let Some(uds_path) = opt.uds {
+        // Run the ABCI server.
+        server.listen_unix(uds_path).await.unwrap();
+    } else {
+        let tcp_addr = format!("{}:{}", opt.host, opt.port);
+
+        // Run the ABCI server.
+        server.listen_tcp(tcp_addr).await.unwrap();
+    }
 }
