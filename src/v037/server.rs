@@ -1,18 +1,19 @@
 use std::convert::{TryFrom, TryInto};
+use std::path::Path;
 
 use futures::future::{FutureExt, TryFutureExt};
 use futures::sink::SinkExt;
 use futures::stream::{FuturesOrdered, StreamExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::{
-    net::{TcpListener, TcpStream, ToSocketAddrs},
+    net::{TcpListener, ToSocketAddrs, UnixListener},
     select,
 };
 use tokio_util::codec::{FramedRead, FramedWrite};
 use tower::{Service, ServiceExt};
 
-use tendermint::abci::MethodKind;
-
 use crate::BoxError;
+use tendermint::abci::MethodKind;
 
 use tendermint::v0_37::abci::{
     ConsensusRequest, ConsensusResponse, InfoRequest, InfoResponse, MempoolRequest,
@@ -125,29 +126,54 @@ where
         ServerBuilder::default()
     }
 
-    pub async fn listen<A: ToSocketAddrs + std::fmt::Debug>(self, addr: A) -> Result<(), BoxError> {
-        tracing::info!(?addr, "starting ABCI server");
-        let listener = TcpListener::bind(addr).await?;
-        let local_addr = listener.local_addr()?;
-        tracing::info!(?local_addr, "bound tcp listener");
+    pub async fn listen_unix(self, path: impl AsRef<Path>) -> Result<(), BoxError> {
+        let listener = UnixListener::bind(path)?;
+        let addr = listener.local_addr()?;
+        tracing::info!(?addr, "ABCI server starting on uds");
 
         loop {
             match listener.accept().await {
                 Ok((socket, _addr)) => {
-                    // set parent: None for the connection span, as it should
-                    // exist independently of the listener's spans.
-                    //let span = tracing::span!(parent: None, Level::ERROR, "abci", ?addr);
+                    tracing::debug!(?_addr, "accepted new connection");
                     let conn = Connection {
                         consensus: self.consensus.clone(),
                         mempool: self.mempool.clone(),
                         info: self.info.clone(),
                         snapshot: self.snapshot.clone(),
                     };
-                    //tokio::spawn(async move { conn.run(socket).await.unwrap() }.instrument(span));
-                    tokio::spawn(async move { conn.run(socket).await.unwrap() });
+                    let (read, write) = socket.into_split();
+                    tokio::spawn(async move { conn.run(read, write).await.unwrap() });
                 }
                 Err(e) => {
-                    tracing::warn!({ %e }, "error accepting new tcp connection");
+                    tracing::error!({ %e }, "error accepting new connection");
+                }
+            }
+        }
+    }
+
+    pub async fn listen_tcp<A: ToSocketAddrs + std::fmt::Debug>(
+        self,
+        addr: A,
+    ) -> Result<(), BoxError> {
+        let listener = TcpListener::bind(addr).await?;
+        let addr = listener.local_addr()?;
+        tracing::info!(?addr, "ABCI server starting on tcp socket");
+
+        loop {
+            match listener.accept().await {
+                Ok((socket, _addr)) => {
+                    tracing::debug!(?_addr, "accepted new connection");
+                    let conn = Connection {
+                        consensus: self.consensus.clone(),
+                        mempool: self.mempool.clone(),
+                        info: self.info.clone(),
+                        snapshot: self.snapshot.clone(),
+                    };
+                    let (read, write) = socket.into_split();
+                    tokio::spawn(async move { conn.run(read, write).await.unwrap() });
+                }
+                Err(e) => {
+                    tracing::error!({ %e }, "error accepting new connection");
                 }
             }
         }
@@ -174,14 +200,17 @@ where
 {
     // XXX handle errors gracefully
     // figure out how / if to return errors to tendermint
-    async fn run(mut self, mut socket: TcpStream) -> Result<(), BoxError> {
+    async fn run(
+        mut self,
+        read: impl AsyncReadExt + std::marker::Unpin,
+        write: impl AsyncWriteExt + std::marker::Unpin,
+    ) -> Result<(), BoxError> {
         tracing::info!("listening for requests");
 
         use tendermint_proto::v0_37::abci as pb;
 
         let (mut request_stream, mut response_sink) = {
             use crate::v037::codec::{Decode, Encode};
-            let (read, write) = socket.split();
             (
                 FramedRead::new(read, Decode::<pb::Request>::default()),
                 FramedWrite::new(write, Encode::<pb::Response>::default()),
