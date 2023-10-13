@@ -1,24 +1,27 @@
 use std::convert::{TryFrom, TryInto};
-use std::path::Path;
 
 use futures::future::{FutureExt, TryFutureExt};
 use futures::sink::SinkExt;
 use futures::stream::{FuturesOrdered, StreamExt};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::{
-    net::{TcpListener, ToSocketAddrs, UnixListener},
+    net::{TcpListener, ToSocketAddrs},
     select,
 };
-use tokio_util::codec::{FramedRead, FramedWrite};
-use tower::{Service, ServiceExt};
 
 use crate::BoxError;
 use tendermint::abci::MethodKind;
-
 use tendermint::v0_34::abci::{
     ConsensusRequest, ConsensusResponse, InfoRequest, InfoResponse, MempoolRequest,
     MempoolResponse, Request, Response, SnapshotRequest, SnapshotResponse,
 };
+use tokio_util::codec::{FramedRead, FramedWrite};
+use tower::{Service, ServiceExt};
+
+#[cfg(target_family = "unix")]
+use std::path::Path;
+#[cfg(target_family = "unix")]
+use tokio::net::UnixListener;
 
 /// An ABCI server which listens for connections and forwards requests to four
 /// component ABCI [`Service`]s.
@@ -126,6 +129,7 @@ where
         ServerBuilder::default()
     }
 
+    #[cfg(target_family = "unix")]
     pub async fn listen_unix(self, path: impl AsRef<Path>) -> Result<(), BoxError> {
         let listener = UnixListener::bind(path)?;
         let addr = listener.local_addr()?;
