@@ -184,6 +184,30 @@ where
             }
         }
     }
+
+    pub async fn listen_channel<R, W>(self, mut channel: tokio::sync::mpsc::Receiver<(R, W)>)
+    where
+        R: AsyncReadExt + std::marker::Unpin + Send + 'static,
+        W: AsyncWriteExt + std::marker::Unpin + Send + 'static,
+    {
+        tracing::info!("ABCI server starting on tokio channel");
+
+        match channel.recv().await {
+            Some((read, write)) => {
+                tracing::debug!("accepted new connection");
+                let conn = Connection {
+                    consensus: self.consensus.clone(),
+                    mempool: self.mempool.clone(),
+                    info: self.info.clone(),
+                    snapshot: self.snapshot.clone(),
+                };
+                tokio::spawn(async move { conn.run(read, write).await.unwrap() });
+            }
+            None => {
+                tracing::trace!("channel closed");
+            }
+        }
+    }
 }
 
 struct Connection<C, M, I, S> {
