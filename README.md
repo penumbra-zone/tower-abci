@@ -51,6 +51,11 @@ processing of some requests by immediately returning a future that will be
 executed on the caller's task. Although all requests are still received by
 the application task, not all request processing needs to happen on the
 application task.
+At this level the developer must pay closer attention to utilising Tower
+layers to control the concurrency of the individual services mentioned above.
+In particular the `Consensus` service should be wrapped with
+`ServiceBuilder::concurrency_limit` to avoid a potential reordering of
+consensus message effects caused by concurrent execution.
 
 3. At the highest level of complexity, application developers can implement
 multiple distinct `Service`s and manually control synchronization of shared

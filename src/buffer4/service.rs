@@ -62,6 +62,12 @@ where
     /// [`poll_ready`] but will not issue a [`call`], which prevents other senders from issuing new
     /// requests.
     ///
+    /// # A note on the scope of `bound`
+    ///
+    /// Note that `bound` will only limit the rate of the _submission_ of [Message]s to the [Worker],
+    /// not their _execution_. If the execution itself is asynchronous, concurrency should be further
+    /// controlled by applying an appropriate [tower::Layer] on the returned service component.
+    ///
     /// [`Poll::Ready`]: std::task::Poll::Ready
     /// [`call`]: crate::Service::call
     /// [`poll_ready`]: crate::Service::poll_ready
