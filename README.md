@@ -54,8 +54,10 @@ application task.
 At this level the developer must pay closer attention to utilising Tower
 layers to control the concurrency of the individual services mentioned above.
 In particular the `Consensus` service should be wrapped with
-`ServiceBuilder::concurrency_limit` to avoid a potential reordering of
-consensus message effects caused by concurrent execution.
+`ServiceBuilder::concurrency_limit` of 1 to avoid a potential reordering of
+consensus message effects caused by concurrent execution, as well as
+`ServiceBuilder::buffer` to avoid any deadlocks in message handling in `Connection`
+due to the limited concurrency.
 
 3. At the highest level of complexity, application developers can implement
 multiple distinct `Service`s and manually control synchronization of shared
