@@ -165,6 +165,9 @@ async fn main() {
     // Hand those components to the ABCI server, but customize request behavior
     // for each category -- for instance, apply load-shedding only to mempool
     // and info requests, but not to consensus requests.
+    // Note that this example use synchronous execution in `Service::call`, wrapping the end result in a ready future.
+    // If `Service::call` did the actual request handling inside the `async` block as well, then the `consensus` service
+    // below should be wrapped with a `ServiceBuilder::concurrency_limit` to avoid any unintended reordering of message effects.
     let server_builder = Server::builder()
         .consensus(consensus)
         .snapshot(snapshot)
