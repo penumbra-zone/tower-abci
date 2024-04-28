@@ -11,8 +11,8 @@ documentation = "https://docs.rs/tower-abci"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tendermint-proto = "0.34"
-tendermint = "0.34"
+tendermint-proto = "0.35"
+tendermint = "0.35"
 bytes = "1"
 tokio = { version = "1", features = ["full"]}
 tokio-util = { version = "0.6", features = ["codec"] }
