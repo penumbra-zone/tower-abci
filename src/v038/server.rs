@@ -1,12 +1,11 @@
 use std::convert::{TryFrom, TryInto};
-use std::path::Path;
 
 use futures::future::{FutureExt, TryFutureExt};
 use futures::sink::SinkExt;
 use futures::stream::{FuturesOrdered, StreamExt};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::{
-    net::{TcpListener, ToSocketAddrs, UnixListener},
+    net::{TcpListener, ToSocketAddrs},
     select,
 };
 use tokio_util::codec::{FramedRead, FramedWrite};
@@ -126,8 +125,9 @@ where
         ServerBuilder::default()
     }
 
-    pub async fn listen_unix(self, path: impl AsRef<Path>) -> Result<(), BoxError> {
-        let listener = UnixListener::bind(path)?;
+    #[cfg(target_family = "unix")]
+    pub async fn listen_unix(self, path: impl AsRef<std::path::Path>) -> Result<(), BoxError> {
+        let listener = tokio::net::UnixListener::bind(path)?;
         let addr = listener.local_addr()?;
         tracing::info!(?addr, "ABCI server starting on uds");
 
