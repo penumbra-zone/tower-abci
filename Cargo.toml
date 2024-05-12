@@ -1,6 +1,6 @@
 [package]
 name = "tower-abci"
-version = "0.12.0"
+version = "0.13.0"
 authors = ["Henry de Valence <hdevalence@penumbra.zone>"]
 edition = "2021"
 license = "MIT"
