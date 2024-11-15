@@ -1,7 +1,10 @@
 [package]
 name = "tower-abci"
 version = "0.16.0"
-authors = ["Henry de Valence <hdevalence@penumbra.zone>"]
+authors = [
+  "Penumbra Labs <team@penumbralabs.xyz>",
+  "Henry de Valence <hdevalence@penumbralabs.xyz"
+]
 edition = "2021"
 license = "MIT"
 description = "A `tower`-based interface to Tendermint's ABCI"
