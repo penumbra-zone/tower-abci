@@ -1,3 +1,4 @@
+#![allow(clippy::doc_lazy_continuation)]
 #![doc = include_str!("../README.md")]
 /// A fork of tower::buffer @ `e1760d38` that has four queues feeding
 /// the same worker task, with different priorities.
