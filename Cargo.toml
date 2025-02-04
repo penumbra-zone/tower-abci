@@ -28,6 +28,8 @@ prost = "0.13"
 
 [dev-dependencies]
 structopt = "0.3"
+tokio = { version = "1", features = ["rt-multi-thread"] }
+tower = {version = "0.5", features = ["buffer", "limit", "load-shed"] }
 tracing-subscriber = "0.3.17"
 
 [features]
