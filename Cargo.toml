@@ -17,10 +17,10 @@ documentation = "https://docs.rs/tower-abci"
 tendermint-proto = "0.40"
 tendermint = "0.40"
 bytes = "1"
-tokio = { version = "1", features = ["full"]}
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt"] }
 tokio-util = { version = "0.6", features = ["codec"] }
 tokio-stream = "0.1"
-tower = { version = "0.4", features = ["full"]}
+tower = { version = "0.5", features = ["util"] }
 pin-project = "1"
 futures = "0.3"
 tracing = "0.1"
