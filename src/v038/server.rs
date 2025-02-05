@@ -1,4 +1,5 @@
 use std::convert::{TryFrom, TryInto};
+use std::net::SocketAddr;
 
 use futures::future::{FutureExt, TryFutureExt};
 use futures::sink::SinkExt;
@@ -18,6 +19,66 @@ use tendermint::v0_38::abci::{
     ConsensusRequest, ConsensusResponse, InfoRequest, InfoResponse, MempoolRequest,
     MempoolResponse, Request, Response, SnapshotRequest, SnapshotResponse,
 };
+
+/// An ABCI server which listens for connections and forwards requests to four
+/// component ABCI [`Service`]s.
+pub struct BoundTcpServer<C, M, I, S> {
+    tcp_listener: TcpListener,
+    addr: SocketAddr,
+    consensus: C,
+    mempool: M,
+    info: I,
+    snapshot: S,
+}
+
+impl<C, M, I, S> BoundTcpServer<C, M, I, S> {
+    pub fn local_addr(&self) -> &SocketAddr {
+        &self.addr
+    }
+}
+
+impl<C, M, I, S> BoundTcpServer<C, M, I, S>
+where
+    C: Service<ConsensusRequest, Response = ConsensusResponse, Error = BoxError>
+        + Send
+        + Clone
+        + 'static,
+    C::Future: Send + 'static,
+    M: Service<MempoolRequest, Response = MempoolResponse, Error = BoxError>
+        + Send
+        + Clone
+        + 'static,
+    M::Future: Send + 'static,
+    I: Service<InfoRequest, Response = InfoResponse, Error = BoxError> + Send + Clone + 'static,
+    I::Future: Send + 'static,
+    S: Service<SnapshotRequest, Response = SnapshotResponse, Error = BoxError>
+        + Send
+        + Clone
+        + 'static,
+    S::Future: Send + 'static,
+{
+    pub async fn listen(self) -> Result<(), BoxError> {
+        tracing::info!(?self.addr, "ABCI server listening on tcp socket");
+        loop {
+            match self.tcp_listener.accept().await {
+                Ok((socket, _addr)) => {
+                    tracing::debug!(?_addr, "accepted new connection");
+                    let conn = Connection {
+                        consensus: self.consensus.clone(),
+                        mempool: self.mempool.clone(),
+                        info: self.info.clone(),
+                        snapshot: self.snapshot.clone(),
+                    };
+                    let (read, write) = socket.into_split();
+                    tokio::spawn(async move { conn.run(read, write).await.unwrap() });
+                }
+                Err(e) => {
+                    tracing::error!({ %e }, "error accepting new connection");
+                }
+            }
+        }
+    }
+}
 
 /// An ABCI server which listens for connections and forwards requests to four
 /// component ABCI [`Service`]s.
@@ -101,6 +162,30 @@ where
     }
 }
 
+impl<C, M, I, S> Server<C, M, I, S> {
+    pub async fn bind_tcp<A: ToSocketAddrs + std::fmt::Debug>(
+        self,
+        addr: A,
+    ) -> Result<BoundTcpServer<C, M, I, S>, BoxError> {
+        let tcp_listener = TcpListener::bind(addr).await?;
+        let addr = tcp_listener.local_addr()?;
+        let Self {
+            consensus,
+            mempool,
+            info,
+            snapshot,
+        } = self;
+        Ok(BoundTcpServer {
+            tcp_listener,
+            addr,
+            consensus,
+            mempool,
+            info,
+            snapshot,
+        })
+    }
+}
+
 impl<C, M, I, S> Server<C, M, I, S>
 where
     C: Service<ConsensusRequest, Response = ConsensusResponse, Error = BoxError>
@@ -155,28 +240,8 @@ where
         self,
         addr: A,
     ) -> Result<(), BoxError> {
-        let listener = TcpListener::bind(addr).await?;
-        let addr = listener.local_addr()?;
-        tracing::info!(?addr, "ABCI server starting on tcp socket");
-
-        loop {
-            match listener.accept().await {
-                Ok((socket, _addr)) => {
-                    tracing::debug!(?_addr, "accepted new connection");
-                    let conn = Connection {
-                        consensus: self.consensus.clone(),
-                        mempool: self.mempool.clone(),
-                        info: self.info.clone(),
-                        snapshot: self.snapshot.clone(),
-                    };
-                    let (read, write) = socket.into_split();
-                    tokio::spawn(async move { conn.run(read, write).await.unwrap() });
-                }
-                Err(e) => {
-                    tracing::error!({ %e }, "error accepting new connection");
-                }
-            }
-        }
+        let server = self.bind_tcp(addr).await?;
+        server.listen().await
     }
 }
 

@@ -26,6 +26,7 @@ pub mod v038 {
     mod codec;
     mod server;
     pub mod split;
+    pub use server::BoundTcpServer;
     pub use server::Server;
     pub use server::ServerBuilder;
 }
